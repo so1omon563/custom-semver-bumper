@@ -1,0 +1,230 @@
+---
+name: Test Custom Version Bumper Action
+permissions:
+  contents: read
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up Git for tests
+        run: |
+          git config --global user.name "Test User"
+          git config --global user.email "test@example.com"
+      - name: Install bats-core
+        run: |
+          git clone --depth=1 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          sudo /tmp/bats-core/install.sh /usr/local
+      - name: Run Action Tests
+        run: |
+          cd tests/
+          ./run_tests.sh
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Run ShellCheck
+        run: make shellcheck
+  # Optional: Test the actual action
+  test-action:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Test Action - default patch bump
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          CURRENT_VERSION=${LATEST_TAG#v}
+          echo "Current version: $CURRENT_VERSION"
+          MERGE_COMMIT_MSG="Fix a critical bug"
+          lower_msg=$(echo "$MERGE_COMMIT_MSG" | tr '[:upper:]' '[:lower:]')
+          if [[ $lower_msg == *"#major"* ]]; then
+            echo "Would bump: major"
+          elif [[ $lower_msg == *"#minor"* ]]; then
+            echo "Would bump: minor"
+          else
+            echo "Would bump: patch (expected)"
+          fi
+      - name: Test Action - minor bump via hashtag
+        run: |
+          MERGE_COMMIT_MSG="Add new feature #minor"
+          lower_msg=$(echo "$MERGE_COMMIT_MSG" | tr '[:upper:]' '[:lower:]')
+          if [[ $lower_msg == *"#minor"* ]]; then
+            echo "Would bump: minor (expected)"
+          else
+            echo "ERROR: #minor not detected in: $MERGE_COMMIT_MSG" && exit 1
+          fi
+      - name: Test Action - major bump via hashtag
+        run: |
+          MERGE_COMMIT_MSG="Breaking API change #major"
+          lower_msg=$(echo "$MERGE_COMMIT_MSG" | tr '[:upper:]' '[:lower:]')
+          if [[ $lower_msg == *"#major"* ]]; then
+            echo "Would bump: major (expected)"
+          else
+            echo "ERROR: #major not detected in: $MERGE_COMMIT_MSG" && exit 1
+          fi
+      - name: Test Action - skip marker
+        run: |
+          MERGE_COMMIT_MSG="Update docs only #skip"
+          lower_msg=$(echo "$MERGE_COMMIT_MSG" | tr '[:upper:]' '[:lower:]')
+          if [[ $lower_msg == *"#skip"* || $lower_msg == *"#no-bump"* || $lower_msg == *"#skip-version"* ]]; then
+            echo "Would skip: true (expected)"
+          else
+            echo "ERROR: skip marker not detected in: $MERGE_COMMIT_MSG" && exit 1
+          fi
+      - name: Test Action - default_bump=none with no marker skips
+        run: |
+          MERGE_COMMIT_MSG="Routine maintenance chore"
+          DEFAULT_BUMP="none"
+          lower_msg=$(echo "$MERGE_COMMIT_MSG" | tr '[:upper:]' '[:lower:]')
+          bump_type="$DEFAULT_BUMP"
+          if [[ $lower_msg == *"#major"* ]]; then bump_type="major"; fi
+          if [[ $lower_msg == *"#minor"* ]]; then bump_type="minor"; fi
+          if [[ $lower_msg == *"#patch"* ]]; then bump_type="patch"; fi
+          if [[ "$bump_type" == "none" ]]; then
+            echo "Would skip (default_bump=none, no marker): true (expected)"
+          else
+            echo "ERROR: expected skip but got bump_type=$bump_type" && exit 1
+          fi
+      - name: Test Action - conventional commits feat produces minor bump (real script)
+        run: |
+          WORK_DIR=$(mktemp -d)
+          BARE_DIR=$(mktemp -d)
+          GH_OUT=$(mktemp)
+          trap 'rm -rf "$WORK_DIR" "$BARE_DIR" "$GH_OUT"' EXIT
+          git init --quiet "$WORK_DIR"
+          git -C "$WORK_DIR" config user.name "Test User"
+          git -C "$WORK_DIR" config user.email "test@example.com"
+          echo "initial" > "$WORK_DIR/README.md"
+          git -C "$WORK_DIR" add README.md
+          git -C "$WORK_DIR" commit --quiet -m "Initial commit"
+          git -C "$WORK_DIR" tag -a "v2.0.0" -m "Version 2.0.0"
+          git init --bare --quiet "$BARE_DIR"
+          git -C "$WORK_DIR" remote add origin "$BARE_DIR"
+          git -C "$WORK_DIR" push origin HEAD:main --quiet 2>/dev/null \
+            || git -C "$WORK_DIR" push origin HEAD:master --quiet 2>/dev/null \
+            || true
+          git -C "$WORK_DIR" push origin "v2.0.0" --quiet
+          echo "feature code" >> "$WORK_DIR/README.md"
+          git -C "$WORK_DIR" add README.md
+          git -C "$WORK_DIR" commit --quiet -m "feat: add new dashboard"
+          CC_MAP="$(printf 'feat=minor\nfix=patch')"
+          (cd "$WORK_DIR" && env \
+            GITHUB_OUTPUT="$GH_OUT" \
+            MARKER_STYLE="conventional-commits" \
+            CC_TYPE_MAP="$CC_MAP" \
+            bash "${GITHUB_WORKSPACE}/scripts/bump-version.sh")
+          if git -C "$WORK_DIR" tag -l | grep -qx "v2.1.0" && grep -q "new_version=v2.1.0" "$GH_OUT"; then
+            echo "✓ CC mode feat: v2.1.0 minor bump confirmed (real script)"
+          else
+            echo "ERROR: expected v2.1.0 | tags: $(git -C "$WORK_DIR" tag -l) | output: $(cat "$GH_OUT")"
+            exit 1
+          fi
+  coverage:
+    runs-on: ubuntu-latest
+    name: Coverage Gate
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          # Check out the PR head branch by name so that badge commits push cleanly
+          # to the PR branch rather than on top of the detached merge ref.
+          ref: ${{ github.head_ref || github.ref }}
+      - name: Set up Git for tests
+        run: |
+          git config --global user.name "Test User"
+          git config --global user.email "test@example.com"
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          # Install bats-core from source (not available on npm)
+          git clone --depth=1 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          sudo /tmp/bats-core/install.sh /usr/local
+          # Install kcov: try apt first (Ubuntu 24.04+), build from source as fallback
+          if ! sudo apt-get install -y kcov 2>/dev/null; then
+            echo "kcov not in apt — building from source"
+            sudo apt-get install -y binutils-dev libdw-dev libcurl4-openssl-dev cmake
+            git clone --depth=1 --branch v42 https://github.com/SimonKagstrom/kcov.git /tmp/kcov
+            cmake -S /tmp/kcov -B /tmp/kcov-build -DCMAKE_BUILD_TYPE=Release
+            sudo cmake --build /tmp/kcov-build --target install --parallel "$(nproc)"
+          fi
+      - name: Run coverage gate
+        run: make coverage COVERAGE_THRESHOLD=70
+      - name: Extract coverage percentage
+        id: cov
+        run: |
+          set +e
+          set +o pipefail
+          COVERAGE_RAW=$(find coverage -name 'cobertura.xml' 2>/dev/null \
+            | xargs -r grep -oP 'line-rate="\K[0-9.]+' 2>/dev/null \
+            | head -1)
+          set -e
+          set -o pipefail
+
+          if [ -n "$COVERAGE_RAW" ]; then
+            COVERAGE=$(awk '{printf "%d", $1 * 100}' <<< "$COVERAGE_RAW")
+          else
+            COVERAGE="unknown"
+          fi
+
+          echo "percentage=$COVERAGE" >> "$GITHUB_OUTPUT"
+          echo "Coverage: ${COVERAGE}%"
+      - name: Update coverage badge
+        # Runs during PR checks (not after merge). The PR branch is writable by
+        # github-actions[bot]; direct pushes to main are blocked by branch protection.
+        # The badge commit lands on the branch before the squash merge, so main always
+        # ends up with the correct value after any PR merges.
+        # Fork PRs are excluded: GITHUB_TOKEN is read-only for forks and the push would fail.
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          PCT="${{ steps.cov.outputs.percentage }}"
+          if echo "$PCT" | grep -qE '^[0-9]+$' && [ "$PCT" -ge 80 ]; then
+            COLOR="brightgreen"
+          elif echo "$PCT" | grep -qE '^[0-9]+$' && [ "$PCT" -ge 70 ]; then
+            COLOR="yellow"
+          elif echo "$PCT" | grep -qE '^[0-9]+$'; then
+            COLOR="red"
+          else
+            PCT="unknown"
+            COLOR="lightgrey"
+          fi
+          # Only append a percent sign for numeric coverage values
+          if echo "$PCT" | grep -qE '^[0-9]+$'; then
+            BADGE_PCT="${PCT}%25"
+          else
+            BADGE_PCT="$PCT"
+          fi
+          BADGE_URL="https://img.shields.io/badge/coverage-${BADGE_PCT}-${COLOR}"
+          # Replace the Coverage badge line in README.md in-place
+          sed -i "s|https://img.shields.io/badge/coverage-[^)]*|${BADGE_URL}|" README.md
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git diff --staged --quiet || git commit -m "ci: update coverage badge [skip ci]"
+          # Push to the PR branch (github.head_ref), not main
+          git push origin "HEAD:${{ github.head_ref }}" \
+            || echo "::warning::Coverage badge push failed. Badge may be stale."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/

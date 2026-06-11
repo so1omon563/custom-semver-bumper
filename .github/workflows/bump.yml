@@ -1,0 +1,56 @@
+# Eating my own dog food
+name: Custom Version Bump on PR Merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  bump-version:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      new_tag: ${{ steps.bump.outputs.new_version }}
+      skipped: ${{ steps.bump.outputs.skipped }}
+      release_requested: ${{ steps.bump.outputs.should_release }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - id: bump
+        uses: ./
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Floating pointer tags (v1, v1.3) are owned by the create-release job
+          # below so they only move when a GitHub Release is actually published.
+
+  create-release:
+    name: Create GitHub Release
+    needs: bump-version
+    # Only run when the commit contained a release marker (#release / #publish /
+    # #ship). The action guarantees should_release=false whenever the bump is
+    # skipped, so no separate skipped check is needed here.
+    if: needs.bump-version.outputs.release_requested == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create release
+        uses: so1omon563/release-creator@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ needs.bump-version.outputs.new_tag }}
+          tag-prefix: v
+          notes-format: grouped
+          move-major-tag: 'true'
+          move-minor-tag: 'true'

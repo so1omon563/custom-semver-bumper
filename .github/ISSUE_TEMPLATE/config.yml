@@ -1,0 +1,12 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Project Scope
+    url: https://github.com/so1omon563/custom-semver-bumper#project-scope
+    about: >
+      Read this before opening a feature request. This action is a Git tag bumper —
+      not a release manager. Requests outside this scope will be closed.
+  - name: Feature Request Policy
+    url: https://github.com/so1omon563/custom-semver-bumper/blob/main/CONTRIBUTING.md#feature-request-policy
+    about: >
+      Read this to understand what kinds of feature requests will be accepted and
+      what tools to use for out-of-scope needs (GitHub Releases, changelogs, etc.).

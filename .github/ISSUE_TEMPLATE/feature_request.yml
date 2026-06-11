@@ -1,0 +1,72 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for the Custom Version Bumper action.
+# NOTE: The URLs below are absolute. Update them if this repository is renamed or transferred.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Before you continue
+
+        **This action auto-tags every merge commit. That is its entire purpose.**
+
+        It creates a semver-compliant Git tag on every merge to the target branch —
+        automatically, whether or not that commit represents a release. If you want
+        every commit to `main` to be versioned and traceable, this action is for you.
+        If you only want tags at explicit, intentional release points, this action is
+        not for you.
+
+        Please read the [Project Scope](https://github.com/so1omon563/custom-semver-bumper#project-scope)
+        section of the README before submitting. Requests that fall outside the defined scope
+        will be closed without merging.
+
+        If you need GitHub Release creation, changelog generation, tag lifecycle management,
+        branch-based release gating, or tag protection rules, those are not in scope for this
+        action. See the [Feature Request Policy](https://github.com/so1omon563/custom-semver-bumper/blob/main/CONTRIBUTING.md#feature-request-policy)
+        in CONTRIBUTING.md for alternatives.
+
+  - type: checkboxes
+    id: scope-confirmation
+    attributes:
+      label: Scope confirmation
+      description: >
+        Confirm you have read the Project Scope section before submitting this request.
+      options:
+        - label: >
+            I have read the [Project Scope](https://github.com/so1omon563/custom-semver-bumper#project-scope)
+            section of the README and confirmed this request is about Git tag creation or
+            the inputs/outputs that control it — not about GitHub Releases, changelogs,
+            tag lifecycle, or deployment.
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature description
+      description: >
+        Describe the feature. Explain specifically how it relates to determining a version
+        bump level or creating a Git tag. If this is about what happens after a tag is
+        created, it is out of scope.
+      placeholder: "Example: Add support for a #hotfix commit marker that always maps to a patch bump."
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: >
+        Describe the workflow or scenario where this feature is needed. What problem does
+        it solve that cannot be addressed with the existing inputs?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: >
+        Have you considered any workarounds or alternative approaches? Describe them here.
+    validations:
+      required: false

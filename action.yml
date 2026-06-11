@@ -1,0 +1,213 @@
+---
+name: "Custom Version Bumper"
+description: >-
+  GitHub Action that auto-creates SemVer Git tags on PR merge, using commit message markers
+  (#major/#minor/#patch) or Conventional Commits, with support for pre-release suffixes and
+  major/minor tag movement.
+inputs:
+  GITHUB_TOKEN:
+    required: true
+    description: "GitHub token for authentication"
+  move_major_tag:
+    required: false
+    default: "false"
+    description: >
+      Move the major tag (e.g., v1) to point to the latest stable version.
+      Skipped automatically when a pre-release tag is produced — floating pointer
+      tags must only ever reference stable commits to protect consumers who pin to @v1.
+  move_minor_tag:
+    required: false
+    default: "false"
+    description: >
+      Move the minor tag (e.g., v1.3) to point to the latest stable version.
+      Skipped automatically when a pre-release tag is produced — same reason as
+      move_major_tag.
+  default_bump:
+    required: false
+    default: "patch"
+    description: >
+      Bump level to use when no commit message marker is found.
+      Allowed values: patch, minor, major, none, prerelease,
+      patch-prerelease, minor-prerelease, major-prerelease.
+      Use 'none' to only bump when an explicit marker (#major, #minor, #patch)
+      is present in the commit message.
+      Use 'prerelease' (or 'patch-prerelease') to produce a pre-release tag
+      by default: bumps at patch level and appends a counter. If
+      prerelease_suffix is set the tag is named (e.g. v1.2.4-alpha.1);
+      otherwise numeric (e.g. v1.2.4-1).
+      Use 'minor-prerelease' or 'major-prerelease' to produce pre-release
+      tags at a higher base bump level (e.g. v1.3.0-alpha.1 for minor,
+      v2.0.0-alpha.1 for major).
+      NOTE: compound prerelease defaults are a workflow convenience; the
+      SemVer spec ties minor to new functionality and major to breaking
+      changes, so ensure your workflow semantics match.
+      When any prerelease default is active and prerelease_suffix is empty,
+      explicit markers (#major, #minor, #patch) still produce stable releases.
+      In marker_style: conventional-commits mode, mapped CC types (feat:, fix:)
+      and breaking-change indicators are also treated as explicit markers and
+      likewise suppress the default prerelease behavior.
+      Use the #stable or #release marker to force a stable release even when
+      prerelease_suffix is set.
+  prerelease_suffix:
+    required: false
+    default: ""
+    description: >
+      When set, appends a label identifier and auto-incrementing counter to the tag
+      (e.g., 'alpha' produces v1.3.0-alpha.1, v1.3.0-alpha.2, ...).
+      The identifier uses the SemVer §9 pre-release label slot, but is not limited
+      to pre-release signaling — any meaningful identifier is valid (e.g. nightly,
+      enterprise, canary, team-blue).
+      Common pre-release values: alpha, beta, rc, preview, canary, dev.
+      Can be overridden by a commit message marker — see allowed_prerelease_suffixes.
+  allowed_prerelease_suffixes:
+    required: false
+    default: "alpha beta rc preview canary dev"
+    description: >
+      Space- or newline-separated list of label values that a commit message
+      is permitted to specify via #prerelease:<suffix>, #pre:<suffix>, a
+      Pre-release: footer, or a pre:<suffix> CC scope hint.
+      When a commit message specifies a suffix not in this list, a warning is
+      logged and the workflow-level prerelease_suffix input is used instead.
+      Override this list to allow additional or restricted values, including
+      non-pre-release identifiers such as 'nightly', 'enterprise', or 'team-blue'.
+  marker_style:
+    required: false
+    default: "hashtag"
+    description: >
+      Strategy for detecting the version bump level from commit messages.
+      'hashtag' (default): looks for #major, #minor, #patch in the commit body.
+      'conventional-commits': parses Conventional Commit type prefixes
+      (e.g. feat:, fix:) using the cc_type_map input.
+      In 'conventional-commits' mode, BREAKING CHANGE footers and the ! suffix
+      always map to a major bump and cannot be overridden by cc_type_map.
+  cc_type_map:
+    required: false
+    default: |
+      feat=minor
+      fix=patch
+    description: >
+      Mapping of Conventional Commit type prefixes to bump levels.
+      One entry per line in 'type=level' format (e.g. feat=minor).
+      Only used when marker_style is 'conventional-commits'.
+      BREAKING CHANGE footers and type! suffixes always map to major
+      and cannot be overridden here. Types not in the map fall through
+      to default_bump.
+  branch_name:
+    required: false
+    default: ""
+    description: >
+      Optional branch name used as a fallback bump-level signal when the
+      commit message contains no explicit version marker.
+      Typically set to the head branch ref in the workflow, e.g. using
+      `github.head_ref` via the inputs block.
+      The prefix before the first '/' is matched against branch_prefix_map
+      (e.g. feat/add-login → minor, fix/null-check → patch).
+      Has no effect when the commit message already has an explicit marker
+      (#major, #minor, #patch, a Conventional Commit type, or a breaking change).
+  branch_prefix_map:
+    required: false
+    default: |
+      feat=minor
+      feature=minor
+      fix=patch
+      hotfix=patch
+      bugfix=patch
+      breaking=major
+      major=major
+      minor=minor
+      patch=patch
+    description: >
+      Mapping of branch name prefixes to bump levels, used when branch_name
+      is set and the commit message has no explicit marker.
+      One entry per line in 'prefix=level' format (e.g. feat=minor).
+      The prefix is the part of the branch name before the first '/'.
+      Matching is case-insensitive.
+  tag_prefix:
+    required: false
+    default: "v"
+    description: >
+      Prefix to prepend to every version tag. Default is 'v' (e.g. v1.2.3).
+      Set to '' for unprefixed tags (e.g. 1.2.3), or any string such as
+      'release-' to produce tags like release-1.2.3.
+      Note: if the prefix contains a hyphen (-), it must not be ambiguous
+      with the pre-release suffix separator — avoid prefixes like 'v-'.
+  build_metadata:
+    required: false
+    default: ""
+    description: >
+      Optional SemVer §10 build metadata to append to the tag (e.g. v1.3.0+build.42).
+      Accepts a free-form string of alphanumeric, hyphen, and dot characters
+      (e.g. 'build.42', 'sha.abc1234').
+      Use the shorthand value 'sha' to have the action automatically resolve the
+      current commit SHA to 'sha.<7-char-sha>' (e.g. v1.3.0+sha.a1b2c3d).
+      Build metadata is appended to the versioned tag only; floating pointer tags
+      (v1, v1.3) are never updated with metadata.
+      Per SemVer §10, build metadata is ignored for version precedence — it does
+      not affect bump level detection or stable-tag lookups.
+      Invalid characters produce a warning and the tag is created without metadata.
+  release_marker:
+    required: false
+    default: "#release #publish #ship"
+    description: >
+      Space-separated list of commit-message tokens that signal a GitHub Release
+      should be created after this version bump. Detection is case-insensitive.
+      Set to "" to disable marker detection entirely.
+      When any token is found in the merge commit message AND the version bump is
+      not skipped, the 'should_release' output is set to 'true' — a downstream job
+      can use this to conditionally call so1omon563/release-creator.
+      Example: "#release" (default), "#publish #ship".
+      Note: the GITHUB_TOKEN limitation means the release creator must run in the
+      same workflow, not a separate workflow triggered by a tag push event.
+outputs:
+  new_version:
+    description: >-
+      The new version tag created (e.g., v1.3.0, or v1.3.0+sha.a1b2c3d when
+      build_metadata is set). Empty when skipped.
+    value: ${{ steps.bump.outputs.new_version }}
+  previous_version:
+    description: "The version tag before the bump (e.g., v1.2.4)."
+    value: ${{ steps.bump.outputs.previous_version }}
+  bump_type:
+    description: >-
+      The bump type applied: major, minor, patch, prerelease, or skip.
+      Returns 'prerelease' when a pre-release tag is created (prerelease_suffix
+      is set or default_bump is 'prerelease').
+    value: ${{ steps.bump.outputs.bump_type }}
+  skipped:
+    description: "true if the version bump was skipped, false otherwise."
+    value: ${{ steps.bump.outputs.skipped }}
+  should_release:
+    description: >-
+      'true' when a release marker was found in the merge commit message AND the
+      version bump was not skipped. 'false' otherwise.
+      Use this output to conditionally trigger so1omon563/release-creator
+      in the same workflow run (required because GITHUB_TOKEN-pushed tags do not
+      fire tag-push events in other workflows).
+    value: ${{ steps.bump.outputs.should_release }}
+runs:
+  using: composite
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+        token: ${{ inputs.GITHUB_TOKEN }}
+
+    - name: Calculate and push new tag
+      id: bump
+      run: ${{ github.action_path }}/scripts/bump-version.sh
+      env:
+        GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
+        MOVE_MAJOR_TAG: ${{ inputs.move_major_tag }}
+        MOVE_MINOR_TAG: ${{ inputs.move_minor_tag }}
+        DEFAULT_BUMP: ${{ inputs.default_bump }}
+        PRERELEASE_SUFFIX: ${{ inputs.prerelease_suffix }}
+        ALLOWED_PRERELEASE_SUFFIXES: ${{ inputs.allowed_prerelease_suffixes }}
+        MARKER_STYLE: ${{ inputs.marker_style }}
+        CC_TYPE_MAP: ${{ inputs.cc_type_map }}
+        BRANCH_NAME: ${{ inputs.branch_name }}
+        BRANCH_PREFIX_MAP: ${{ inputs.branch_prefix_map }}
+        TAG_PREFIX: ${{ inputs.tag_prefix }}
+        BUILD_METADATA: ${{ inputs.build_metadata }}
+        RELEASE_MARKER: ${{ inputs.release_marker }}
+      shell: bash
