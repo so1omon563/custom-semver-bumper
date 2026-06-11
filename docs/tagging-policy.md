@@ -41,6 +41,7 @@ All tags follow [Semantic Versioning 2.0.0][semver-spec]:
 - Stable releases use **no** pre-release label, for example: `1.4.2`.
 - These tags are created on vetted commits from `main` and are the primary references
   for production use.
+- Release-marked merge commits can also publish a GitHub Release for the new stable tag.
 
 ### 4. Pre-release tags
 
