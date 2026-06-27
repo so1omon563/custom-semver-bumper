@@ -37,7 +37,7 @@ clear message listing the untested inputs.
 
 `kcov` instruments `scripts/bump-version.sh` as it is called by `test_script.bats`,
 measuring which lines are actually executed. CI enforces a minimum threshold (currently
-**75%**) — if new code branches are added without tests, coverage drops and the
+**70%**) — if new code branches are added without tests, coverage drops and the
 `coverage` CI job fails.
 
 ```bash
@@ -122,7 +122,7 @@ Tests the action in realistic Git repository scenarios:
 - **Commit Message Parsing**: Reading merge commit messages
 - **Git Configuration**: Setting up Git user name and email
 - **Version Parsing Edge Cases**: Handling various version formats
-- **Smoke Tests** (lines 641–1139): Call `scripts/bump-version.sh` directly as a subprocess
+- **Smoke Tests**: Call `scripts/bump-version.sh` directly as a subprocess
 
 ### BATS Helper Tests (`test.bats`)
 
@@ -184,7 +184,7 @@ The tests cover the following scenarios from the GitHub Action:
 
 - ✅ `#major`, `#minor`, `#patch` (case insensitive)
 - ✅ Keywords at different positions in messages
-- ✅ Multiple keywords (first one wins)
+- ✅ Multiple keywords (highest-precedence marker wins)
 - ✅ Words without `#` prefix (should not trigger)
 - ✅ Empty or malformed commit messages
 - ✅ `#skip`, `#no-bump`, `#skip-version` skip markers

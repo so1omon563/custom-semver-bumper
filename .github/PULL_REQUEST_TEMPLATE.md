@@ -34,7 +34,7 @@ Please ensure all applicable items are completed before submitting this PR:
 
 - [ ] I have read and followed the [Contributing Guidelines](../CONTRIBUTING.md)
 - [ ] Documentation has been provided or updated for any new or modified behaviour
-- [ ] Code follows the existing Bash scripting patterns (`set -e`, quiet flags, temp dir cleanup)
+- [ ] Code follows the existing Bash scripting patterns (`set -euo pipefail`, quoted variables, temp dir cleanup)
 - [ ] ShellCheck passes (`make shellcheck`)
 - [ ] Test scripts are executable (`make setup`)
 - [ ] Git config is set (required for test suite to run correctly)
@@ -61,4 +61,4 @@ _Optional: Add any additional context, screenshots, or notes that reviewers shou
 
 - Run `make test-all` to verify the full test suite passes
 - Check that any new edge cases are covered by unit tests in `tests/test.sh`
-- Verify BATS tests in `tests/test.bats` cover the new behaviour
+- Verify production-script behaviour is covered in `tests/test_script.bats` when relevant
