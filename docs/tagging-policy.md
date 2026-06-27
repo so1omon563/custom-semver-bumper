@@ -54,8 +54,9 @@ Unstable or not-yet-final versions use pre-release identifiers, for example:
 Pre-release versions have lower precedence than the corresponding stable version
 (for example, `1.5.0-rc.1 < 1.5.0`).
 
-We use pre-release tags for internal and early-adopter environments. Consumers that
-want only stable builds should depend on tags **without** pre-release labels.
+Pre-release tags are useful for testing, early adoption, and other non-stable
+channels. Consumers that want only stable builds should depend on tags **without**
+pre-release labels.
 
 ### 5. Tagging every merge to `main`
 
@@ -99,9 +100,9 @@ Two rules are enforced:
 
 A reference ruleset export is provided at
 [`protect-semver-tags-ruleset.json`](protect-semver-tags-ruleset.json). It uses the
-default `v` prefix and grants bypass rights to organisation admins and the
-`maintain` repository role for emergency tag removal. The `id` and `source` fields
-are intentionally omitted — GitHub assigns these automatically on import.
+default `v` prefix and grants bypass rights to repository admins and maintainers for
+emergency tag removal. The `id` and `source` fields are intentionally omitted —
+GitHub assigns these automatically on import.
 
 ## Rationale
 
@@ -147,9 +148,9 @@ The reason this distinction matters here:
   the separation. Tags are immutable version records; releases are curated announcements.
 
 Pre-release tags (e.g. `1.5.0-alpha.1`) follow the same immutability principle as
-stable tags. They identify a specific build for internal use or early adoption. Whether
-a corresponding GitHub Release is created for an alpha tag is a release management
-decision, not a tagging decision.
+stable tags. They identify a specific non-stable build for testing or early adoption.
+Whether a corresponding GitHub Release is created for an alpha tag is a release
+management decision, not a tagging decision.
 
 ## Action Alignment
 
