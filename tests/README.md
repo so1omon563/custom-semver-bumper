@@ -123,6 +123,8 @@ Tests the action in realistic Git repository scenarios:
 - **Git Configuration**: Setting up Git user name and email
 - **Version Parsing Edge Cases**: Handling various version formats
 - **Smoke Tests**: Call `scripts/bump-version.sh` directly as a subprocess
+- **Concurrent Pushes**: Retry confirmed remote tag conflicts, preserve unrelated
+  push failures, and stop after the bounded attempt limit
 
 ### BATS Helper Tests (`test.bats`)
 
