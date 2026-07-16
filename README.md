@@ -1,7 +1,7 @@
 # Custom Version Bumper
 
 [![Test Custom Version Bumper Action](https://github.com/so1omon563/custom-semver-bumper/actions/workflows/test.yml/badge.svg)](https://github.com/so1omon563/custom-semver-bumper/actions/workflows/test.yml)
-[![Coverage](https://img.shields.io/badge/coverage-73%25-yellow)](https://github.com/so1omon563/custom-semver-bumper/actions/workflows/test.yml)
+[![Coverage](https://img.shields.io/badge/coverage-77%25-yellow)](https://github.com/so1omon563/custom-semver-bumper/actions/workflows/test.yml)
 
 GitHub Action that **automatically tags every merge commit** with a
 [Semantic Versioning 2.0.0][semver-spec]-compliant Git tag. Every time a PR merges
