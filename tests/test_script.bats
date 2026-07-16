@@ -80,6 +80,102 @@ teardown() {
     grep -q "previous_version=v1.2.3" "$GITHUB_OUTPUT_FILE"
 }
 
+@test "script: confirmed remote tag conflict refetches and recomputes" {
+    git tag -a "v1.2.3" -m "Version 1.2.3"
+    git push origin "v1.2.3" --quiet
+
+    echo "Concurrent fix" >> README.md
+    git add README.md
+    git commit --quiet -m "Fix a race condition"
+
+    export CONFLICT_MARKER="$ORIGIN_DIR/conflict-injected"
+    export CONFLICT_ORIGIN_DIR="$ORIGIN_DIR"
+    cat > .git/hooks/pre-push << 'EOF'
+#!/bin/bash
+set -e
+if [[ ! -e "${CONFLICT_MARKER:?}" ]]; then
+    touch "$CONFLICT_MARKER"
+    remote_head=$(git --git-dir="${CONFLICT_ORIGIN_DIR:?}" rev-parse refs/heads/main)
+    git --git-dir="$CONFLICT_ORIGIN_DIR" update-ref refs/tags/v1.2.4 "$remote_head"
+fi
+EOF
+    chmod +x .git/hooks/pre-push
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    echo "Script output: $output"
+    [ "$status" -eq 0 ]
+
+    [[ "$output" == *"won a concurrent push"* ]]
+    git ls-remote --exit-code --tags origin "refs/tags/v1.2.4" >/dev/null
+    git ls-remote --exit-code --tags origin "refs/tags/v1.2.5" >/dev/null
+    grep -q "previous_version=v1.2.4" "$GITHUB_OUTPUT_FILE"
+    grep -q "new_version=v1.2.5" "$GITHUB_OUTPUT_FILE"
+}
+
+@test "script: non-conflict push failure is not retried" {
+    git tag -a "v1.2.3" -m "Version 1.2.3"
+    git push origin "v1.2.3" --quiet
+
+    echo "Rejected fix" >> README.md
+    git add README.md
+    git commit --quiet -m "Fix a rejected change"
+
+    export PUSH_ATTEMPT_LOG="$TEST_TEMP_DIR/push-attempts"
+    export CONFLICT_ORIGIN_DIR="$ORIGIN_DIR"
+    cat > .git/hooks/pre-push << 'EOF'
+#!/bin/bash
+printf 'attempt\n' >> "${PUSH_ATTEMPT_LOG:?}"
+remote_head=$(git --git-dir="${CONFLICT_ORIGIN_DIR:?}" rev-parse refs/heads/main)
+git --git-dir="$CONFLICT_ORIGIN_DIR" update-ref refs/tags/v1.2.4 "$remote_head"
+echo "simulated non-conflict push failure" >&2
+exit 1
+EOF
+    chmod +x .git/hooks/pre-push
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    echo "Script output: $output"
+    [ "$status" -ne 0 ]
+
+    [ "$(wc -l < "$PUSH_ATTEMPT_LOG" | tr -d ' ')" -eq 1 ]
+    [[ "$output" == *"non-conflict reason; not retrying"* ]]
+    git ls-remote --exit-code --tags origin "refs/tags/v1.2.4" >/dev/null
+    ! git ls-remote --exit-code --tags origin "refs/tags/v1.2.5" >/dev/null 2>&1
+}
+
+@test "script: confirmed remote tag conflicts stop after three attempts" {
+    git tag -a "v1.2.3" -m "Version 1.2.3"
+    git push origin "v1.2.3" --quiet
+
+    echo "Contended fix" >> README.md
+    git add README.md
+    git commit --quiet -m "Fix under continuous contention"
+
+    export CONFLICT_ORIGIN_DIR="$ORIGIN_DIR"
+    export PUSH_ATTEMPT_LOG="$TEST_TEMP_DIR/push-attempts"
+    cat > .git/hooks/pre-push << 'EOF'
+#!/bin/bash
+set -e
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+    if [[ "$remote_ref" == refs/tags/v*.*.* ]]; then
+        printf 'attempt\n' >> "${PUSH_ATTEMPT_LOG:?}"
+        remote_head=$(git --git-dir="${CONFLICT_ORIGIN_DIR:?}" rev-parse refs/heads/main)
+        git --git-dir="$CONFLICT_ORIGIN_DIR" update-ref "$remote_ref" "$remote_head"
+    fi
+done
+EOF
+    chmod +x .git/hooks/pre-push
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    echo "Script output: $output"
+    [ "$status" -ne 0 ]
+
+    [ "$(wc -l < "$PUSH_ATTEMPT_LOG" | tr -d ' ')" -eq 3 ]
+    [[ "$output" == *"persisted after 3 attempts"* ]]
+}
+
 @test "script: minor bump via #minor marker" {
     git tag -a "v1.2.3" -m "Version 1.2.3"
     git push origin "v1.2.3" --quiet

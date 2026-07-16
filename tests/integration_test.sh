@@ -692,6 +692,68 @@ test_bump_version_script_patch() {
     return 0
 }
 
+# A competing run publishes the same candidate after this checkout calculates
+# it but before its push reaches the remote. The production script must refetch,
+# recompute from the winning tag, and publish the next patch.
+test_bump_version_script_tag_push_conflict_retry() {
+    local origin_dir
+    origin_dir=$(_setup_local_remote)
+
+    git tag -a "v1.2.3" -m "Version 1.2.3"
+    git push origin "v1.2.3" --quiet
+
+    echo "Concurrent fix" >> README.md
+    git add README.md
+    git commit --quiet -m "Fix a race condition"
+
+    local conflict_marker="$origin_dir/conflict-injected"
+    cat > .git/hooks/pre-push << 'EOF'
+#!/bin/bash
+set -e
+
+if [[ ! -e "${CONFLICT_MARKER:?}" ]]; then
+    touch "$CONFLICT_MARKER"
+    remote_head=$(git --git-dir="${CONFLICT_ORIGIN_DIR:?}" rev-parse refs/heads/main)
+    git --git-dir="$CONFLICT_ORIGIN_DIR" update-ref refs/tags/v1.2.4 "$remote_head"
+fi
+EOF
+    chmod +x .git/hooks/pre-push
+
+    local github_output run_output
+    github_output=$(mktemp)
+    run_output=$(mktemp)
+
+    if ! CONFLICT_MARKER="$conflict_marker" \
+        CONFLICT_ORIGIN_DIR="$origin_dir" \
+        GITHUB_OUTPUT="$github_output" \
+        bash "$SCRIPT_DIR/../scripts/bump-version.sh" > "$run_output" 2>&1; then
+        echo "Expected tag-conflict retry to succeed. Output: $(cat "$run_output")"
+        rm -f "$github_output" "$run_output"; rm -rf "$origin_dir"
+        return 1
+    fi
+
+    if ! git ls-remote --exit-code --tags origin "refs/tags/v1.2.4" >/dev/null 2>&1 || \
+       ! git ls-remote --exit-code --tags origin "refs/tags/v1.2.5" >/dev/null 2>&1; then
+        echo "Expected remote tags v1.2.4 and v1.2.5 after retry. Tags: $(git tag -l)"
+        rm -f "$github_output" "$run_output"; rm -rf "$origin_dir"
+        return 1
+    fi
+    if ! grep -q "new_version=v1.2.5" "$github_output" || \
+       ! grep -q "previous_version=v1.2.4" "$github_output"; then
+        echo "Retry outputs did not use the winning remote tag. Got: $(cat "$github_output")"
+        rm -f "$github_output" "$run_output"; rm -rf "$origin_dir"
+        return 1
+    fi
+    if ! grep -q "won a concurrent push" "$run_output"; then
+        echo "Expected conflict retry diagnostic. Output: $(cat "$run_output")"
+        rm -f "$github_output" "$run_output"; rm -rf "$origin_dir"
+        return 1
+    fi
+
+    rm -f "$github_output" "$run_output"; rm -rf "$origin_dir"
+    return 0
+}
+
 # Smoke test: minor bump via #minor marker
 test_bump_version_script_minor() {
     local origin_dir
@@ -792,6 +854,7 @@ test_bump_version_script_skip() {
 }
 
 run_integration_test "bump-version.sh smoke: patch bump" test_bump_version_script_patch
+run_integration_test "bump-version.sh smoke: concurrent tag conflict retries" test_bump_version_script_tag_push_conflict_retry
 run_integration_test "bump-version.sh smoke: minor bump (#minor)" test_bump_version_script_minor
 run_integration_test "bump-version.sh smoke: major bump (#major)" test_bump_version_script_major
 run_integration_test "bump-version.sh smoke: skip marker (#skip)" test_bump_version_script_skip

@@ -551,7 +551,42 @@ fi
 git config user.name "GitHub Actions"
 git config user.email "actions@github.com"
 git tag -a "$NEW_TAG" -m "Bump version to $NEW_TAG"
-git push origin "$NEW_TAG"
+
+# Two overlapping runs can calculate the same immutable tag. Retry only when
+# the exact candidate is confirmed on the remote; authentication, permission,
+# transport, ruleset, and all other push failures retain their original status.
+_MAX_TAG_PUSH_ATTEMPTS=3
+_TAG_PUSH_ATTEMPT="${_TAG_PUSH_ATTEMPT:-1}"
+if _PUSH_OUTPUT=$(git push origin "$NEW_TAG" 2>&1); then
+  [[ -n "$_PUSH_OUTPUT" ]] && printf '%s\n' "$_PUSH_OUTPUT"
+else
+  _PUSH_STATUS=$?
+  [[ -n "$_PUSH_OUTPUT" ]] && printf '%s\n' "$_PUSH_OUTPUT" >&2
+
+  _IS_TAG_CONFLICT=false
+  case "$_PUSH_OUTPUT" in
+    *"reference already exists"*|*"(already exists)"*|*"already exists in the remote"*)
+      _IS_TAG_CONFLICT=true
+      ;;
+  esac
+
+  if [[ "$_IS_TAG_CONFLICT" != "true" ]] || \
+     ! git ls-remote --exit-code --tags origin "refs/tags/$NEW_TAG" >/dev/null 2>&1; then
+    echo "Tag push failed for a non-conflict reason; not retrying." >&2
+    exit "$_PUSH_STATUS"
+  fi
+
+  git tag -d "$NEW_TAG" >/dev/null 2>&1 || true
+  if [[ "$_TAG_PUSH_ATTEMPT" -ge "$_MAX_TAG_PUSH_ATTEMPTS" ]]; then
+    echo "Tag conflict for $NEW_TAG persisted after $_MAX_TAG_PUSH_ATTEMPTS attempts." >&2
+    exit "$_PUSH_STATUS"
+  fi
+
+  echo "Remote tag $NEW_TAG won a concurrent push; refreshing tags and recomputing."
+  git fetch origin --tags --force
+  _TAG_PUSH_ATTEMPT=$((_TAG_PUSH_ATTEMPT + 1)) \
+    exec bash "${BASH_SOURCE[0]}"
+fi
 
 # Move major tag if requested — skipped for pre-release tags to protect consumers
 # who pin to e.g. @v1 and expect only stable releases.

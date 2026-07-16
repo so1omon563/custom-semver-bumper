@@ -208,6 +208,12 @@ checking signals in priority order:
 A new annotated Git tag (`v1.2.3`) is created and pushed. If no tags exist yet in
 the repository, the action starts at `v0.0.1`.
 
+If concurrent runs calculate the same immutable tag, the run that loses the push
+race confirms that exact tag exists on the remote, refetches tags, recomputes from
+the winning version, and retries. Retries are capped at three attempts. Push
+failures that are not confirmed tag conflicts — including permission, ruleset,
+authentication, and transport failures — are returned immediately without retry.
+
 All tags are authored by `GitHub Actions <actions@github.com>`.
 
 ## SemVer Compliance
@@ -829,6 +835,15 @@ permissions:
 
 - Check the Actions run logs for detailed error messages
 - Verify `GITHUB_TOKEN` has appropriate repository access
+
+**Concurrent version tag conflicts:**
+
+- The action automatically refetches, recomputes, and retries confirmed remote
+  tag conflicts up to three times
+- Persistent contention fails with an explicit retry-limit message; rerun the
+  failed workflow after the competing tag pushes finish
+- Other push failures are not retried, so their original diagnostic remains the
+  place to start troubleshooting
 
 **Major tag conflicts:**
 
