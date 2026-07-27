@@ -49,8 +49,9 @@ tags (`v1`, `v1.3`) for GitHub Actions consumers.
     - [Branch Name Fallback](#branch-name-fallback)
     - [Configuring the Default Bump](#configuring-the-default-bump)
       - [Compound Pre-Release Defaults](#compound-pre-release-defaults)
-    - [Build Metadata](#build-metadata)
     - [Chaining with Release Creator](#chaining-with-release-creator)
+    - [Build Metadata](#build-metadata)
+    - [Publishing to GitHub Marketplace](#publishing-to-github-marketplace)
   - [Troubleshooting](#troubleshooting)
   - [Development](#development)
     - [Contributing](#contributing)
@@ -811,6 +812,15 @@ Use the `sha` shorthand to automatically append the commit SHA:
 
 > **Note:** Floating pointer tags (`v1`, `v1.3`) are **never** updated with build
 > metadata. `move_major_tag` and `move_minor_tag` always point to the clean version.
+
+### Publishing to GitHub Marketplace
+
+A Marketplace version is the same GitHub Release created by the workflow above; it
+does not need a separate tag or release.
+
+After the release is created, edit it on GitHub, select **Publish this Action to the
+GitHub Marketplace**, choose the categories, and update the release. Repeat this manual
+step for each version that should appear in Marketplace.
 
 ## Troubleshooting
 
