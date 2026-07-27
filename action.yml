@@ -1,9 +1,11 @@
 ---
 name: "Custom Version Bumper"
-description: >-
-  GitHub Action that auto-creates SemVer Git tags on PR merge, using commit message markers
-  (#major/#minor/#patch) or Conventional Commits, with support for pre-release suffixes and
-  major/minor tag movement.
+description: "Creates SemVer Git tags from merge markers, Conventional Commits, or branch prefixes, with prereleases and floating tags."
+
+branding:
+  icon: tag
+  color: blue
+
 inputs:
   GITHUB_TOKEN:
     required: true
