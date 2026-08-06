@@ -68,6 +68,26 @@ _find_release_marker() {
   return 1
 }
 
+CC_BREAKING_RE='^([a-zA-Z]+)(\([^)]*\))?!:'
+CC_TYPE_RE='^([a-zA-Z]+)(\([^)]*\))?:'
+
+_conventional_title_has_bump_marker() {
+  local _title_type _map_key
+  if [[ "$COMMIT_TITLE" =~ $CC_BREAKING_RE ]]; then
+    return 0
+  fi
+  if [[ "$COMMIT_TITLE" =~ $CC_TYPE_RE ]]; then
+    _title_type=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
+    while IFS='=' read -r _map_key _map_val; do
+      _map_key=$(echo "$_map_key" | tr -d ' \t\r')
+      if [[ -n "$_map_key" && "$_map_key" == "$_title_type" ]]; then
+        return 0
+      fi
+    done <<< "${CC_TYPE_MAP:-}"
+  fi
+  return 1
+}
+
 # --- Skip detection ---
 # Check the commit title first. If the title contains an explicit bump marker
 # (#major, #minor, #patch), skip detection is bypassed entirely — a body that
@@ -79,6 +99,10 @@ TITLE_HAS_SKIP_MARKER=false
 if _marker_in_text "$LOWER_TITLE" "#major" || \
    _marker_in_text "$LOWER_TITLE" "#minor" || \
    _marker_in_text "$LOWER_TITLE" "#patch"; then
+  TITLE_HAS_BUMP_MARKER=true
+fi
+if [[ "${MARKER_STYLE:-hashtag}" == "conventional-commits" ]] && \
+   _conventional_title_has_bump_marker; then
   TITLE_HAS_BUMP_MARKER=true
 fi
 if _marker_in_text "$LOWER_TITLE" "#skip-version" || \
@@ -207,9 +231,7 @@ if [[ "${MARKER_STYLE:-hashtag}" == "conventional-commits" ]]; then
   CC_SCOPE_PRERELEASE=""
 
   # Regex patterns stored in variables for bash 3.2 compatibility
-  CC_BREAKING_RE='^([a-zA-Z]+)(\([^)]*\))?!:'
   CC_FOOTER_RE='^BREAKING([[:space:]]|-)CHANGE:'
-  CC_TYPE_RE='^([a-zA-Z]+)(\([^)]*\))?:'
 
   # Scan every line of the commit message
   while IFS= read -r line; do

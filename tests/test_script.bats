@@ -320,6 +320,33 @@ EOF
     grep -q "bump_type=major" "$GITHUB_OUTPUT_FILE"
 }
 
+@test "script: conventional title takes priority over body markers" {
+    git tag -a "v1.0.0" -m "Version 1.0.0"
+    git push origin "v1.0.0" --quiet
+
+    echo "New feature" >> README.md
+    git add README.md
+    git commit --quiet -m "feat: add new login page" -m "Docs mention #skip and #release as examples."
+
+    local cc_map
+    cc_map="$(printf 'feat=minor\nfix=patch\nchore=patch')"
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" \
+        DEFAULT_BUMP="prerelease" \
+        PRERELEASE_SUFFIX="alpha" \
+        MARKER_STYLE="conventional-commits" \
+        CC_TYPE_MAP="$cc_map" \
+        RELEASE_MARKER="#release #publish #ship" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    echo "Script output: $output"
+    [ "$status" -eq 0 ]
+
+    grep -q "new_version=v1.1.0-alpha.1" "$GITHUB_OUTPUT_FILE"
+    grep -q "should_release=false" "$GITHUB_OUTPUT_FILE"
+    [[ "$output" != *"Stable marker found"* ]]
+    [[ "$output" != *"Release marker found"* ]]
+}
+
 # ── Pre-release ───────────────────────────────────────────────────────────────
 
 @test "script: #prerelease:alpha hashtag creates named pre-release tag" {
