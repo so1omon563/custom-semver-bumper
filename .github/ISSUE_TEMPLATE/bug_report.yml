@@ -7,8 +7,10 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for taking the time to report a bug. Please fill in as much detail as
-        possible to help us reproduce and fix the issue.
+        Thank you for taking the time to report a bug. Please provide a minimal
+        reproduction and the evidence needed to verify it. For test or test-runner
+        issues, include the exact command, failing test name, and complete failure
+        summary—not only a pasted symptom.
 
   - type: checkboxes
     id: existing-issues
@@ -35,7 +37,9 @@ body:
       label: Steps to reproduce
       description: >
         Step-by-step instructions to reproduce the behaviour. Include your workflow
-        configuration and a sample commit message if relevant.
+        configuration and the complete triggering input, such as a commit title/body,
+        action inputs, or exact test command and test name. Reduce the example to the
+        smallest case that still reproduces the problem.
       placeholder: |
         1. Configure the action with `default_bump: minor`
         2. Merge a PR with commit message "chore: update deps #skip"
@@ -55,7 +59,21 @@ body:
     id: actual
     attributes:
       label: Actual behaviour
-      description: What actually happened? Include any error messages or unexpected output.
+      description: >
+        What actually happened? Include the complete relevant error messages, action
+        outputs, created tags, logs, or test summary.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: >
+        Paste the relevant command output or logs. For test failures, include the
+        exact command, failing test name(s), pass/fail counts, and full failure summary.
+        Remove secrets and private repository details.
+      render: text
     validations:
       required: true
 

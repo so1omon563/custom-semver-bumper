@@ -195,6 +195,23 @@ EOF
     grep -q "previous_version=v1.2.3" "$GITHUB_OUTPUT_FILE"
 }
 
+@test "script: marker-like words do not trigger hashtag bumps" {
+    git tag -a "v1.2.3" -m "Version 1.2.3"
+    git push origin "v1.2.3" --quiet
+
+    echo "Minority report" >> README.md
+    git add README.md
+    git commit --quiet -m "Handle #minority reports"
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    echo "Script output: $output"
+    [ "$status" -eq 0 ]
+
+    grep -q "new_version=v1.2.4" "$GITHUB_OUTPUT_FILE"
+    grep -q "bump_type=patch" "$GITHUB_OUTPUT_FILE"
+}
+
 @test "script: major bump via #major marker" {
     git tag -a "v1.2.3" -m "Version 1.2.3"
     git push origin "v1.2.3" --quiet
@@ -342,6 +359,25 @@ EOF
     # No pre-release tag should be created despite prerelease mode being active
     [ "$(git tag -l | grep -c 'v5.1.0-')" -eq 0 ]
     grep -q "new_version=v5.1.0" "$GITHUB_OUTPUT_FILE"
+}
+
+@test "script: marker-like words do not trigger stable escape hatch" {
+    git tag -a "v1.0.0" -m "Version 1.0.0"
+    git push origin "v1.0.0" --quiet
+
+    echo "Release preparation" >> README.md
+    git add README.md
+    git commit --quiet -m "Document #releasable workflow"
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" \
+        DEFAULT_BUMP="prerelease" \
+        PRERELEASE_SUFFIX="alpha" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    echo "Script output: $output"
+    [ "$status" -eq 0 ]
+
+    grep -q "new_version=v1.0.1-alpha.1" "$GITHUB_OUTPUT_FILE"
+    [[ "$output" != *"Stable marker found"* ]]
 }
 
 # ── Branch name fallback ──────────────────────────────────────────────────────
@@ -691,6 +727,64 @@ EOF
 
     grep -q "should_release=true" "$GITHUB_OUTPUT_FILE"
     grep -q "new_version=v1.1.0" "$GITHUB_OUTPUT_FILE"
+}
+
+@test "script: release marker in a bump title overrides a body example" {
+    git tag -a "v1.0.0" -m "Version 1.0.0"
+    git push origin "v1.0.0" --quiet
+
+    echo "Feature work" >> README.md
+    git add README.md
+    git commit --quiet -m "Add search feature #minor" -m "Docs mention #release as an example."
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" \
+        DEFAULT_BUMP="prerelease" \
+        PRERELEASE_SUFFIX="alpha" \
+        RELEASE_MARKER="#release #publish #ship" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    echo "Script output: $output"
+    [ "$status" -eq 0 ]
+
+    grep -q "should_release=false" "$GITHUB_OUTPUT_FILE"
+    grep -q "new_version=v1.1.0-alpha.1" "$GITHUB_OUTPUT_FILE"
+    [[ "$output" != *"Release marker found"* ]]
+    [[ "$output" != *"Stable marker found"* ]]
+}
+
+@test "script: release marker in body remains supported when title has no bump marker" {
+    git tag -a "v1.0.0" -m "Version 1.0.0"
+    git push origin "v1.0.0" --quiet
+
+    echo "Feature work" >> README.md
+    git add README.md
+    git commit --quiet -m "Add search feature" -m "Ship this change #release"
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" \
+        RELEASE_MARKER="#release #publish #ship" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    echo "Script output: $output"
+    [ "$status" -eq 0 ]
+
+    grep -q "should_release=true" "$GITHUB_OUTPUT_FILE"
+    [[ "$output" == *"Release marker found in commit body: #release"* ]]
+}
+
+@test "script: marker-like words do not trigger release detection" {
+    git tag -a "v1.0.0" -m "Version 1.0.0"
+    git push origin "v1.0.0" --quiet
+
+    echo "Label cleanup" >> README.md
+    git add README.md
+    git commit --quiet -m "Tidy #shipping labels"
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" \
+        RELEASE_MARKER="#release #publish #ship" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    echo "Script output: $output"
+    [ "$status" -eq 0 ]
+
+    grep -q "should_release=false" "$GITHUB_OUTPUT_FILE"
+    [[ "$output" != *"Release marker found"* ]]
 }
 
 @test "script: RELEASE_MARKER sets should_release=false when no marker in commit" {

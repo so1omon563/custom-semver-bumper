@@ -334,7 +334,7 @@ The `id` and `source` fields are omitted from the JSON — GitHub assigns these 
 | `branch_prefix_map`           | ❌        | *(see below)*                      | Branch prefix → bump level, one `prefix=level` entry per line                                                                                                                                                                                                               |
 | `tag_prefix`                  | ❌        | `v`                                | Prefix for all version tags (convention, not part of the SemVer spec). Use `""` for bare `1.2.3`, or e.g. `release-` for `release-1.2.3`                                                                                                                                    |
 | `build_metadata`              | ❌        | `""`                               | SemVer §10 build metadata to append (e.g. `build.${{ github.run_number }}` → `v1.3.0+build.42`). Use `sha` as a shorthand to auto-resolve to `sha.<7-char-git-sha>`. Only affects the versioned tag — floating pointer tags (`v1`, `v1.3`) are never updated with metadata. |
-| `release_marker`              | ❌        | `#release #publish #ship`          | Space-separated tokens that trigger the `should_release=true` output when found in the merge commit message. Detection is case-insensitive. Set to `""` to disable. See [Chaining with Release Creator](#chaining-with-release-creator). |
+| `release_marker`              | ❌        | `#release #publish #ship`          | Space-separated tokens that trigger the `should_release=true` output when found at non-alphanumeric boundaries in the merge commit message. A title token takes priority; body tokens are ignored when the title has a bump marker. Detection is case-insensitive. Set to `""` to disable. See [Chaining with Release Creator](#chaining-with-release-creator). |
 
 **Default `branch_prefix_map`:**
 
@@ -699,14 +699,19 @@ prerelease behavior.
 > other workflows (GitHub prevents this to avoid infinite loops). The release step must
 > therefore run **in the same workflow run** as the bump.
 
-Add `#release`, `#publish`, or `#ship` anywhere in the merge commit message. The marker
-can stand alone or combine with a bump marker:
+Add `#release`, `#publish`, or `#ship` to the merge commit title or body. Markers are
+matched as standalone tokens, so `#shipping` does not match `#ship`. A title marker
+takes priority; a body marker is ignored when the title has an explicit bump marker.
+The marker can stand alone or combine with a bump marker:
 
 ```text
 #minor          → bump to next minor, no release
 #minor #release → bump to next minor AND create a GitHub Release
 #release        → bump with the default level AND create a GitHub Release
 ```
+
+For example, `Add feature #minor` with a body that documents `#release` does not
+create a release: the explicit bump marker in the title makes the body non-authoritative.
 
 The `should_release` output is `true` when any configured marker is found and the bump
 was not skipped. A downstream job consumes it:
