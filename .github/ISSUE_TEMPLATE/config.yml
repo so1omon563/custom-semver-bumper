@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: How to Report an Issue
+    url: https://github.com/so1omon563/custom-semver-bumper/blob/main/CONTRIBUTING.md#opening-an-issue
+    about: Include a reproducible trigger, expected and actual behavior, and supporting output.
   - name: Project Scope
     url: https://github.com/so1omon563/custom-semver-bumper#project-scope
     about: >

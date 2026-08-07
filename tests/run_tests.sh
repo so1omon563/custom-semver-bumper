@@ -183,8 +183,9 @@ if command -v bats &> /dev/null; then
             else
                 echo -e "${RED}✗ $label: $failed of $total tests failed${NC}"
                 echo -e "${RED}Detailed BATS output:${NC}"
-                # Re-run in pretty mode for human-readable failure details
-                bats "$bats_file" 2>&1 | sed 's/^/  /'
+                # TAP output already includes the failing test diagnostics; do not
+                # re-run a failing suite under `set -e` and abort the final summary.
+                printf '%s\n' "$tap_output" | sed 's/^/  /'
             fi
         else
             echo -e "${RED}✗ $label: $bats_file not found${NC}"

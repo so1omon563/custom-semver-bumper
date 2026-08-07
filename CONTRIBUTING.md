@@ -94,6 +94,31 @@ All behavior changes should include tests. The most important suite is
 `tests/test_script.bats` because it invokes `scripts/bump-version.sh` directly in a
 real isolated Git repository.
 
+## Opening an Issue
+
+Search [existing issues](https://github.com/so1omon563/custom-semver-bumper/issues)
+first, then use the Bug Report or Feature Request form. A useful issue gives
+someone else enough information to reproduce the behavior without guessing.
+
+For a bug report, include:
+
+1. The action version or commit SHA, plus the runner OS when relevant.
+2. The exact command or workflow configuration that was used, with secrets removed.
+3. The triggering event and input, such as the complete merge commit title/body,
+   relevant action inputs, or the exact test command and test name.
+4. The expected result and the actual result.
+5. Observable evidence: full relevant output, error text, created tags, action
+   outputs, or the test summary—not only a description of the symptom.
+6. A minimal reproduction or step-by-step reproduction. If the issue is intermittent,
+   say how often it reproduces.
+
+For test or test-runner issues, report the exact command, failing test name(s),
+pass/fail counts, and the complete failure summary. A pasted summary without the
+command and failure evidence is not enough to diagnose the problem.
+
+Do not include credentials, tokens, private repository data, or other secrets.
+Report security vulnerabilities privately through the [security advisory form](https://github.com/so1omon563/custom-semver-bumper/security/advisories/new).
+
 ## What to Test
 
 | Change type                               | Where to add tests                                               |

@@ -38,6 +38,56 @@ COMMIT_BODY=$(echo "$MERGE_COMMIT_MSG" | tail -n +2)
 LOWER_TITLE=$(echo "$COMMIT_TITLE" | tr '[:upper:]' '[:lower:]')
 LOWER_BODY=$(echo "$COMMIT_BODY" | tr '[:upper:]' '[:lower:]')
 
+# Match a literal marker only when it is not part of a larger alphanumeric word.
+_marker_in_text() {
+  local _text="$1" _token="$2" _before _after _before_char _after_char
+  [[ -n "$_token" ]] || return 1
+  while [[ $_text == *"$_token"* ]]; do
+    _before="${_text%%"$_token"*}"
+    _after="${_text#*"$_token"}"
+    _before_char="${_before: -1}"
+    _after_char="${_after:0:1}"
+    if [[ -z "$_before_char" || ! "$_before_char" =~ [[:alnum:]] ]] && \
+       [[ -z "$_after_char" || ! "$_after_char" =~ [[:alnum:]] ]]; then
+      return 0
+    fi
+    _text="$_after"
+  done
+  return 1
+}
+
+_find_release_marker() {
+  local _text="$1" _token _lower_token
+  for _token in ${RELEASE_MARKER}; do
+    _lower_token=$(echo "$_token" | tr '[:upper:]' '[:lower:]')
+    if _marker_in_text "$_text" "$_lower_token"; then
+      _RELEASE_MARKER_MATCH="$_token"
+      return 0
+    fi
+  done
+  return 1
+}
+
+CC_BREAKING_RE='^([a-zA-Z]+)(\([^)]*\))?!:'
+CC_TYPE_RE='^([a-zA-Z]+)(\([^)]*\))?:'
+
+_conventional_title_has_bump_marker() {
+  local _title_type _map_key
+  if [[ "$COMMIT_TITLE" =~ $CC_BREAKING_RE ]]; then
+    return 0
+  fi
+  if [[ "$COMMIT_TITLE" =~ $CC_TYPE_RE ]]; then
+    _title_type=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
+    while IFS='=' read -r _map_key _map_val; do
+      _map_key=$(echo "$_map_key" | tr -d ' \t\r')
+      if [[ -n "$_map_key" && "$_map_key" == "$_title_type" ]]; then
+        return 0
+      fi
+    done <<< "${CC_TYPE_MAP:-}"
+  fi
+  return 1
+}
+
 # --- Skip detection ---
 # Check the commit title first. If the title contains an explicit bump marker
 # (#major, #minor, #patch), skip detection is bypassed entirely — a body that
@@ -46,14 +96,18 @@ LOWER_BODY=$(echo "$COMMIT_BODY" | tr '[:upper:]' '[:lower:]')
 # Only when the title has no marker at all do we fall through to the body.
 TITLE_HAS_BUMP_MARKER=false
 TITLE_HAS_SKIP_MARKER=false
-if [[ $LOWER_TITLE == *"#major"* ]] || \
-   [[ $LOWER_TITLE == *"#minor"* ]] || \
-   [[ $LOWER_TITLE == *"#patch"* ]]; then
+if _marker_in_text "$LOWER_TITLE" "#major" || \
+   _marker_in_text "$LOWER_TITLE" "#minor" || \
+   _marker_in_text "$LOWER_TITLE" "#patch"; then
   TITLE_HAS_BUMP_MARKER=true
 fi
-if [[ $LOWER_TITLE == *"#skip-version"* ]] || \
-   [[ $LOWER_TITLE == *"#no-bump"* ]] || \
-   [[ $LOWER_TITLE == *"#skip"* ]]; then
+if [[ "${MARKER_STYLE:-hashtag}" == "conventional-commits" ]] && \
+   _conventional_title_has_bump_marker; then
+  TITLE_HAS_BUMP_MARKER=true
+fi
+if _marker_in_text "$LOWER_TITLE" "#skip-version" || \
+   _marker_in_text "$LOWER_TITLE" "#no-bump" || \
+   _marker_in_text "$LOWER_TITLE" "#skip"; then
   TITLE_HAS_SKIP_MARKER=true
 fi
 
@@ -71,9 +125,9 @@ if $TITLE_HAS_SKIP_MARKER; then
   exit 0
 elif ! $TITLE_HAS_BUMP_MARKER; then
   # Title has no explicit marker — check the body for skip markers
-  if [[ $LOWER_BODY == *"#skip-version"* ]] || \
-     [[ $LOWER_BODY == *"#no-bump"* ]] || \
-     [[ $LOWER_BODY == *"#skip"* ]]; then
+  if _marker_in_text "$LOWER_BODY" "#skip-version" || \
+     _marker_in_text "$LOWER_BODY" "#no-bump" || \
+     _marker_in_text "$LOWER_BODY" "#skip"; then
     echo "Skip marker detected in commit message body. No version bump will be performed."
     if [[ -n "$GITHUB_OUTPUT" ]]; then
       {
@@ -92,8 +146,24 @@ fi
 # #stable or #release in the commit message forces a plain stable tag even when
 # default_bump is set to 'prerelease'. Detected here so it can clear PRERELEASE_SUFFIX.
 FORCE_STABLE=false
-if [[ $LOWER_MSG == *"#stable"* || $LOWER_MSG == *"#release"* ]]; then
+FORCE_STABLE_MARKER=""
+FORCE_STABLE_LOCATION=""
+if _marker_in_text "$LOWER_TITLE" "#stable"; then
   FORCE_STABLE=true
+  FORCE_STABLE_MARKER="#stable"
+  FORCE_STABLE_LOCATION="title"
+elif _marker_in_text "$LOWER_TITLE" "#release"; then
+  FORCE_STABLE=true
+  FORCE_STABLE_MARKER="#release"
+  FORCE_STABLE_LOCATION="title"
+elif ! $TITLE_HAS_BUMP_MARKER && _marker_in_text "$LOWER_BODY" "#stable"; then
+  FORCE_STABLE=true
+  FORCE_STABLE_MARKER="#stable"
+  FORCE_STABLE_LOCATION="body"
+elif ! $TITLE_HAS_BUMP_MARKER && _marker_in_text "$LOWER_BODY" "#release"; then
+  FORCE_STABLE=true
+  FORCE_STABLE_MARKER="#release"
+  FORCE_STABLE_LOCATION="body"
 fi
 
 # Get the highest stable version tag, excluding pre-release tags.
@@ -161,9 +231,7 @@ if [[ "${MARKER_STYLE:-hashtag}" == "conventional-commits" ]]; then
   CC_SCOPE_PRERELEASE=""
 
   # Regex patterns stored in variables for bash 3.2 compatibility
-  CC_BREAKING_RE='^([a-zA-Z]+)(\([^)]*\))?!:'
   CC_FOOTER_RE='^BREAKING([[:space:]]|-)CHANGE:'
-  CC_TYPE_RE='^([a-zA-Z]+)(\([^)]*\))?:'
 
   # Scan every line of the commit message
   while IFS= read -r line; do
@@ -243,22 +311,22 @@ else
   # Fall through to the full-message scan only when the title has no bump marker.
   CC_SCOPE_PRERELEASE=""
   if $TITLE_HAS_BUMP_MARKER; then
-    if [[ $LOWER_TITLE == *"#major"* ]]; then
+    if _marker_in_text "$LOWER_TITLE" "#major"; then
       BUMP_TYPE="major"
-    elif [[ $LOWER_TITLE == *"#minor"* ]]; then
+    elif _marker_in_text "$LOWER_TITLE" "#minor"; then
       BUMP_TYPE="minor"
     else
       BUMP_TYPE="patch"
     fi
     COMMIT_HAS_EXPLICIT_MARKER=true
     echo "Hashtag marker found in commit title: $BUMP_TYPE bump"
-  elif [[ $LOWER_MSG == *"#major"* ]]; then
+  elif _marker_in_text "$LOWER_MSG" "#major"; then
     BUMP_TYPE="major"
     COMMIT_HAS_EXPLICIT_MARKER=true
-  elif [[ $LOWER_MSG == *"#minor"* ]]; then
+  elif _marker_in_text "$LOWER_MSG" "#minor"; then
     BUMP_TYPE="minor"
     COMMIT_HAS_EXPLICIT_MARKER=true
-  elif [[ $LOWER_MSG == *"#patch"* ]]; then
+  elif _marker_in_text "$LOWER_MSG" "#patch"; then
     BUMP_TYPE="patch"
     COMMIT_HAS_EXPLICIT_MARKER=true
   else
@@ -356,7 +424,7 @@ COUNTER_ONLY=false
 
 if $FORCE_STABLE; then
   # #stable or #release escape hatch — always produce a stable tag regardless of config.
-  # Only log when pre-release was actually active; silent no-op on standard workflows.
+  echo "Stable marker found in commit $FORCE_STABLE_LOCATION: $FORCE_STABLE_MARKER"
   if [[ -n "$PRERELEASE_SUFFIX" || $_DEFAULT_PRERELEASE == true ]]; then
     echo "Stable-release marker detected. Pre-release suffix will be cleared for this run."
   fi
@@ -630,13 +698,20 @@ echo "New version tag created: $NEW_TAG"
 # Detection is case-insensitive. should_release is always false when skipped.
 SHOULD_RELEASE="false"
 if [[ -n "${RELEASE_MARKER:-}" ]]; then
-  _commit_msg="$MERGE_COMMIT_MSG"
-  for _token in ${RELEASE_MARKER}; do
-    if echo "${_commit_msg}" | grep -qiF "${_token}"; then
-      SHOULD_RELEASE="true"
-      break
+  _RELEASE_MARKER_MATCH=""
+  _RELEASE_MARKER_LOCATION=""
+  if _find_release_marker "$LOWER_TITLE"; then
+    _RELEASE_MARKER_LOCATION="title"
+  fi
+  if [[ -z "$_RELEASE_MARKER_MATCH" ]] && ! $TITLE_HAS_BUMP_MARKER; then
+    if _find_release_marker "$LOWER_BODY"; then
+      _RELEASE_MARKER_LOCATION="body"
     fi
-  done
+  fi
+  if [[ -n "$_RELEASE_MARKER_MATCH" ]]; then
+    SHOULD_RELEASE="true"
+    echo "Release marker found in commit $_RELEASE_MARKER_LOCATION: $_RELEASE_MARKER_MATCH"
+  fi
 fi
 
 # Write outputs to GITHUB_OUTPUT (only set in a real GitHub Actions environment)

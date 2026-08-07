@@ -153,10 +153,13 @@ inputs:
     description: >
       Space-separated list of commit-message tokens that signal a GitHub Release
       should be created after this version bump. Detection is case-insensitive.
+      Tokens are matched literally at non-alphanumeric boundaries, not inside
+      longer words. A token in the commit title takes priority; body tokens are
+      considered only when the title has no explicit bump marker.
       Set to "" to disable marker detection entirely.
-      When any token is found in the merge commit message AND the version bump is
-      not skipped, the 'should_release' output is set to 'true' — a downstream job
-      can use this to conditionally call so1omon563/release-creator.
+      When a token is found in the merge commit message AND the version bump is
+      not skipped, the 'should_release' output is set to 'true' — a downstream
+      job can use this to conditionally call so1omon563/release-creator.
       Example: "#release" (default), "#publish #ship".
       Note: the GITHUB_TOKEN limitation means the release creator must run in the
       same workflow, not a separate workflow triggered by a tag push event.
