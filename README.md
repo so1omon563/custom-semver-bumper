@@ -431,7 +431,9 @@ latest patch automatically.
 ```
 
 For example, bumping from `v1.2.3` to `v1.3.0` will also move `v1` and `v1.3` to
-point to the same commit as `v1.3.0`.
+point to the same commit as `v1.3.0`. The versioned and requested floating tags
+are pushed atomically, so a rejected floating-tag update leaves every remote tag
+at its previous value.
 
 > **Immutability note:** Versioned tags (`v1.2.3`, `v1.3.0-alpha.1`) are **never**
 > moved or deleted — they are immutable records. Floating pointer tags (`v1`, `v1.3`)

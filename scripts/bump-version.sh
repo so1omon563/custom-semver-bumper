@@ -678,12 +678,42 @@ git config user.name "GitHub Actions"
 git config user.email "actions@github.com"
 git tag -a "$NEW_TAG" -m "Bump version to $NEW_TAG"
 
+_PUSH_REFS=("$NEW_TAG")
+_FLOATING_TAGS=()
+
+# Prepare floating refs locally, then publish every requested ref in one atomic push.
+if [[ "$MOVE_MAJOR_TAG" == "true" ]]; then
+  if $PRERELEASE_MODE; then
+    echo "Skipping major tag update: floating pointer tags are not moved for pre-release versions."
+  else
+    IFS='.' read -ra NEW_VERSION_PARTS <<< "$NEW_VERSION"
+    MAJOR_TAG="${TAG_PREFIX}${NEW_VERSION_PARTS[0]}"
+    git tag -d "$MAJOR_TAG" 2>/dev/null || true
+    git tag -a "$MAJOR_TAG" -m "Move major tag to $NEW_TAG"
+    _PUSH_REFS+=("+refs/tags/$MAJOR_TAG:refs/tags/$MAJOR_TAG")
+    _FLOATING_TAGS+=("$MAJOR_TAG")
+  fi
+fi
+
+if [[ "$MOVE_MINOR_TAG" == "true" ]]; then
+  if $PRERELEASE_MODE; then
+    echo "Skipping minor tag update: floating pointer tags are not moved for pre-release versions."
+  else
+    IFS='.' read -ra NEW_VERSION_PARTS <<< "$NEW_VERSION"
+    MINOR_TAG="${TAG_PREFIX}${NEW_VERSION_PARTS[0]}.${NEW_VERSION_PARTS[1]}"
+    git tag -d "$MINOR_TAG" 2>/dev/null || true
+    git tag -a "$MINOR_TAG" -m "Move minor tag to $NEW_TAG"
+    _PUSH_REFS+=("+refs/tags/$MINOR_TAG:refs/tags/$MINOR_TAG")
+    _FLOATING_TAGS+=("$MINOR_TAG")
+  fi
+fi
+
 # Two overlapping runs can calculate the same immutable tag. Retry only when
 # the exact candidate is confirmed on the remote; authentication, permission,
 # transport, ruleset, and all other push failures retain their original status.
 _MAX_TAG_PUSH_ATTEMPTS=3
 _TAG_PUSH_ATTEMPT="${_TAG_PUSH_ATTEMPT:-1}"
-if _PUSH_OUTPUT=$(git push origin "$NEW_TAG" 2>&1); then
+if _PUSH_OUTPUT=$(git push --atomic origin "${_PUSH_REFS[@]}" 2>&1); then
   [[ -n "$_PUSH_OUTPUT" ]] && printf '%s\n' "$_PUSH_OUTPUT"
 else
   _PUSH_STATUS=$?
@@ -696,13 +726,18 @@ else
       ;;
   esac
 
+  # Restore the local view after any rejected transaction.
+  for _LOCAL_TAG in "$NEW_TAG" "${_FLOATING_TAGS[@]}"; do
+    git tag -d "$_LOCAL_TAG" >/dev/null 2>&1 || true
+  done
+  git fetch origin --tags --force >/dev/null 2>&1 || true
+
   if [[ "$_IS_TAG_CONFLICT" != "true" ]] || \
      ! git ls-remote --exit-code --tags origin "refs/tags/$NEW_TAG" >/dev/null 2>&1; then
     echo "Tag push failed for a non-conflict reason; not retrying." >&2
     exit "$_PUSH_STATUS"
   fi
 
-  git tag -d "$NEW_TAG" >/dev/null 2>&1 || true
   if [[ "$_TAG_PUSH_ATTEMPT" -ge "$_MAX_TAG_PUSH_ATTEMPTS" ]]; then
     echo "Tag conflict for $NEW_TAG persisted after $_MAX_TAG_PUSH_ATTEMPTS attempts." >&2
     exit "$_PUSH_STATUS"
@@ -714,40 +749,8 @@ else
     exec bash "${BASH_SOURCE[0]}"
 fi
 
-# Move major tag if requested — skipped for pre-release tags to protect consumers
-# who pin to e.g. @v1 and expect only stable releases.
-if [[ "$MOVE_MAJOR_TAG" == "true" ]]; then
-  if $PRERELEASE_MODE; then
-    echo "Skipping major tag update: floating pointer tags are not moved for pre-release versions."
-  else
-    IFS='.' read -ra NEW_VERSION_PARTS <<< "$NEW_VERSION"
-    MAJOR_TAG="${TAG_PREFIX}${NEW_VERSION_PARTS[0]}"
-
-    git tag -d "$MAJOR_TAG" 2>/dev/null || true
-    git push origin --delete "$MAJOR_TAG" 2>/dev/null || true
-    git tag -a "$MAJOR_TAG" -m "Move major tag to $NEW_TAG"
-    git push origin "$MAJOR_TAG"
-
-    echo "Major tag updated: $MAJOR_TAG -> $NEW_TAG"
-  fi
-fi
-
-# Move minor tag if requested — skipped for pre-release tags for the same reason.
-if [[ "$MOVE_MINOR_TAG" == "true" ]]; then
-  if $PRERELEASE_MODE; then
-    echo "Skipping minor tag update: floating pointer tags are not moved for pre-release versions."
-  else
-    IFS='.' read -ra NEW_VERSION_PARTS <<< "$NEW_VERSION"
-    MINOR_TAG="${TAG_PREFIX}${NEW_VERSION_PARTS[0]}.${NEW_VERSION_PARTS[1]}"
-
-    git tag -d "$MINOR_TAG" 2>/dev/null || true
-    git push origin --delete "$MINOR_TAG" 2>/dev/null || true
-    git tag -a "$MINOR_TAG" -m "Move minor tag to $NEW_TAG"
-    git push origin "$MINOR_TAG"
-
-    echo "Minor tag updated: $MINOR_TAG -> $NEW_TAG"
-  fi
-fi
+[[ -n "${MAJOR_TAG:-}" ]] && echo "Major tag updated: $MAJOR_TAG -> $NEW_TAG"
+[[ -n "${MINOR_TAG:-}" ]] && echo "Minor tag updated: $MINOR_TAG -> $NEW_TAG"
 
 echo "New version tag created: $NEW_TAG"
 
