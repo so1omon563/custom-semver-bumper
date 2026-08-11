@@ -878,7 +878,7 @@ permissions:
 
 1. Run the test suite: `cd tests/ && ./run_tests.sh`
 2. Ensure scripts are executable: `chmod +x tests/*.sh`
-3. Install optional test deps: `make install-deps` (macOS with Homebrew)
+3. Install full-suite test dependencies: `make install-deps` (macOS with Homebrew)
 
 For detailed local workflow notes, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -886,7 +886,7 @@ For detailed local workflow notes, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 | Suite       | Command                 | What it covers                               |
 | ----------- | ----------------------- | -------------------------------------------- |
-| All         | `make test-all`         | Runs all suites                              |
+| All         | `make test-all`         | Runs all suites (requires `bats-core`)       |
 | Unit        | `make test-unit`        | Core version bumping logic                   |
 | Integration | `make test-integration` | Full Git repository simulation               |
 | BATS        | `make test-bats`        | Structured assertions (requires `bats-core`) |

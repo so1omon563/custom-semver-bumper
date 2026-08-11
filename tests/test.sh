@@ -833,6 +833,22 @@ run_test "#stable overrides default_bump=minor-prerelease + suffix → stable" "
 result=$(determine_prerelease_mode "Release #release" "major-prerelease" "")
 run_test "#release overrides default_bump=major-prerelease → stable" "stable" "$result"
 
+print_test_header "Test Runner Dependency Tests"
+missing_bats_path=$(mktemp -d)
+ln -s "$(command -v git)" "$missing_bats_path/git"
+set +e
+missing_bats_output=$(PATH="$missing_bats_path" CHECK_DEPENDENCIES_ONLY=true \
+    /bin/bash "$(dirname "${BASH_SOURCE[0]}")/run_tests.sh" 2>&1)
+missing_bats_status=$?
+set -e
+rm -rf "$missing_bats_path"
+missing_bats_result="fail"
+if [[ $missing_bats_status -ne 0 && "$missing_bats_output" == *"bats-core"* && \
+      "$missing_bats_output" == *"brew install bats-core"* ]]; then
+    missing_bats_result="pass"
+fi
+run_test "Full runner fails with install guidance when BATS is unavailable" "pass" "$missing_bats_result"
+
 # Print test summary
 print_test_header "Test Summary"
 echo "Tests run: $TESTS_RUN"

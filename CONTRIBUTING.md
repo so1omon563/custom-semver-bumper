@@ -8,7 +8,7 @@ cover the local workflow for making and validating changes.
 - Bash on macOS or Linux
 - Git with `user.name` and `user.email` configured
 - `make`
-- Optional: `bats-core` for the BATS test suites
+- `bats-core` for the full `make test-all` suite
 - Optional: `shellcheck` for static analysis
 
 ## Setup
@@ -89,6 +89,9 @@ make test-script        # BATS script-level tests
 make check-contract     # Verify action.yml inputs are covered
 make shellcheck         # Static analysis for shell scripts
 ```
+
+The non-BATS targets (`test-unit`, `test-integration`, and `check-contract`) do
+not require `bats-core`; `test-all`, `test-bats`, and `test-script` do.
 
 All behavior changes should include tests. The most important suite is
 `tests/test_script.bats` because it invokes `scripts/bump-version.sh` directly in a
