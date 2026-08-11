@@ -439,6 +439,16 @@ perf=patch"
     [ "$result" = "snapshot" ]
 }
 
+@test "prerelease suffix: hyphenated hashtag value is preserved" {
+    result=$(resolve_commit_prerelease_suffix "Deploy #prerelease:team-blue" "" "team-blue")
+    [ "$result" = "team-blue" ]
+}
+
+@test "prerelease suffix: invalid trailing content is not truncated" {
+    result=$(resolve_commit_prerelease_suffix "Deploy #prerelease:team-blue_invalid" "" "team-blue")
+    [ "$result" = "" ]
+}
+
 @test "prerelease suffix: alpha excluded from custom allowed list falls back" {
     result=$(resolve_commit_prerelease_suffix "Deploy #prerelease:alpha" "" "beta rc")
     [ "$result" = "" ]
@@ -452,6 +462,11 @@ perf=patch"
 @test "prerelease suffix: CC scope hint fix(pre:rc): sets suffix" {
     result=$(resolve_commit_prerelease_suffix "fix(pre:rc): null check" "" "alpha beta rc preview canary dev" "conventional-commits")
     [ "$result" = "rc" ]
+}
+
+@test "prerelease suffix: hyphenated CC scope value is preserved" {
+    result=$(resolve_commit_prerelease_suffix "feat(pre:team-blue): add login" "" "team-blue" "conventional-commits")
+    [ "$result" = "team-blue" ]
 }
 
 @test "prerelease suffix: CC normal scope does not set suffix" {
@@ -474,6 +489,12 @@ perf=patch"
     msg="$(printf 'feat: add feature\n\nPrerelease: rc')"
     result=$(resolve_commit_prerelease_suffix "$msg" "" "alpha beta rc preview canary dev" "conventional-commits")
     [ "$result" = "rc" ]
+}
+
+@test "prerelease suffix: hyphenated footer value is preserved" {
+    msg="$(printf 'feat: add feature\n\nPre-release: team-blue')"
+    result=$(resolve_commit_prerelease_suffix "$msg" "" "team-blue" "conventional-commits")
+    [ "$result" = "team-blue" ]
 }
 
 @test "prerelease suffix: PRE-RELEASE: footer case-insensitive sets suffix" {

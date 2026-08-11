@@ -396,6 +396,62 @@ EOF
 
 # ── Pre-release ───────────────────────────────────────────────────────────────
 
+@test "script: hyphenated hashtag pre-release suffix is preserved" {
+    git tag -a "v1.2.3" -m "Version 1.2.3"
+    git push origin "v1.2.3" --quiet
+    echo "Channel build" >> README.md
+    git add README.md
+    git commit --quiet -m "Build channel #prerelease:team-blue"
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" ALLOWED_PRERELEASE_SUFFIXES="team-blue" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -eq 0 ]
+    git tag -l | grep -qx "v1.2.4-team-blue.1"
+}
+
+@test "script: hyphenated pre-release footer suffix is preserved" {
+    git tag -a "v1.2.3" -m "Version 1.2.3"
+    git push origin "v1.2.3" --quiet
+    echo "Channel build" >> README.md
+    git add README.md
+    git commit --quiet -m "Build channel" -m "Pre-release: team-blue"
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" ALLOWED_PRERELEASE_SUFFIXES="team-blue" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -eq 0 ]
+    git tag -l | grep -qx "v1.2.4-team-blue.1"
+}
+
+@test "script: hyphenated Conventional Commit scope suffix is preserved" {
+    git tag -a "v1.2.3" -m "Version 1.2.3"
+    git push origin "v1.2.3" --quiet
+    echo "Channel build" >> README.md
+    git add README.md
+    git commit --quiet -m "feat(pre:team-blue): add channel build"
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" \
+        MARKER_STYLE="conventional-commits" \
+        CC_TYPE_MAP="feat=minor" \
+        ALLOWED_PRERELEASE_SUFFIXES="team-blue" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -eq 0 ]
+    git tag -l | grep -qx "v1.3.0-team-blue.1"
+}
+
+@test "script: invalid trailing suffix content is not partially applied" {
+    git tag -a "v1.2.3" -m "Version 1.2.3"
+    git push origin "v1.2.3" --quiet
+    echo "Channel build" >> README.md
+    git add README.md
+    git commit --quiet -m "Build channel #prerelease:team-blue_invalid"
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" ALLOWED_PRERELEASE_SUFFIXES="team-blue" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -eq 0 ]
+    git tag -l | grep -qx "v1.2.4"
+    [ -z "$(git tag -l 'v1.2.4-team-blue.*')" ]
+}
+
 @test "script: hyphenated workflow pre-release suffix creates a valid tag" {
     git tag -a "v1.2.3" -m "Version 1.2.3"
     git push origin "v1.2.3" --quiet

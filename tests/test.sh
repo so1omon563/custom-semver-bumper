@@ -368,9 +368,10 @@ resolve_commit_prerelease_suffix() {
 
     local COMMIT_MSG_PRERELEASE=""
     local CC_SCOPE_PRERELEASE=""
+    local PRERELEASE_SUFFIX_RE='[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*'
 
     # Step A (lowest priority baseline): hashtag marker
-    local PRERELEASE_HASHTAG_RE='#(prerelease|pre):([a-zA-Z][a-zA-Z0-9]*)'
+    local PRERELEASE_HASHTAG_RE="#(prerelease|pre):($PRERELEASE_SUFFIX_RE)([[:space:]]|$)"
     if [[ "$lower_msg" =~ $PRERELEASE_HASHTAG_RE ]]; then
         COMMIT_MSG_PRERELEASE="${BASH_REMATCH[2]}"
     fi
@@ -388,7 +389,7 @@ resolve_commit_prerelease_suffix() {
                 # Lowercase so feat(Pre:ALPHA)!: normalises to pre:alpha
                 scope_inner=$(echo "${scope_raw#(}" | tr '[:upper:]' '[:lower:]')
                 scope_inner="${scope_inner%)}"
-                if [[ "$scope_inner" =~ ^pre:([a-zA-Z][a-zA-Z0-9]*)$ ]]; then
+                if [[ "$scope_inner" =~ ^pre:($PRERELEASE_SUFFIX_RE)$ ]]; then
                     CC_SCOPE_PRERELEASE="${BASH_REMATCH[1]}"
                 fi
             fi
@@ -399,7 +400,7 @@ resolve_commit_prerelease_suffix() {
                 # Lowercase so feat(Pre:ALPHA): normalises to pre:alpha (consistent with hashtag/footer)
                 scope_inner=$(echo "${scope_raw#(}" | tr '[:upper:]' '[:lower:]')
                 scope_inner="${scope_inner%)}"
-                if [[ "$scope_inner" =~ ^pre:([a-zA-Z][a-zA-Z0-9]*)$ ]]; then
+                if [[ "$scope_inner" =~ ^pre:($PRERELEASE_SUFFIX_RE)$ ]]; then
                     CC_SCOPE_PRERELEASE="${BASH_REMATCH[1]}"
                 fi
             fi
@@ -410,8 +411,7 @@ resolve_commit_prerelease_suffix() {
     fi
 
     # Step C (highest priority; overrides A and B): Pre-release: footer, case-insensitive
-    # Intentional: only the first alphanumeric word after the colon is captured.
-    local PRERELEASE_FOOTER_RE='^pre-?release:[[:space:]]*([a-zA-Z][a-zA-Z0-9]*)'
+    local PRERELEASE_FOOTER_RE="^pre-?release:[[:space:]]*($PRERELEASE_SUFFIX_RE)[[:space:]]*$"
     local footer_line
     while IFS= read -r footer_line; do
         local footer_lower
@@ -471,6 +471,12 @@ run_test "Invalid suffix 'snapshot' falls back to empty workflow input" "" "$res
 result=$(resolve_commit_prerelease_suffix "Deploy #prerelease:snapshot" "" "alpha beta snapshot")
 run_test "Custom allowed list includes snapshot" "snapshot" "$result"
 
+result=$(resolve_commit_prerelease_suffix "Deploy #prerelease:team-blue" "" "team-blue")
+run_test "Hyphenated hashtag suffix is preserved" "team-blue" "$result"
+
+result=$(resolve_commit_prerelease_suffix "Deploy #prerelease:team-blue_invalid" "" "team-blue")
+run_test "Invalid trailing suffix content is not truncated" "" "$result"
+
 result=$(resolve_commit_prerelease_suffix "Deploy #prerelease:alpha" "" "beta rc")
 run_test "alpha not in custom allowed list falls back to empty" "" "$result"
 
@@ -480,6 +486,9 @@ run_test "CC scope hint feat(pre:alpha): sets suffix" "alpha" "$result"
 
 result=$(resolve_commit_prerelease_suffix "fix(pre:rc): null check" "" "alpha beta rc preview canary dev" "conventional-commits")
 run_test "CC scope hint fix(pre:rc): sets suffix" "rc" "$result"
+
+result=$(resolve_commit_prerelease_suffix "feat(pre:team-blue): add login" "" "team-blue" "conventional-commits")
+run_test "Hyphenated CC scope suffix is preserved" "team-blue" "$result"
 
 result=$(resolve_commit_prerelease_suffix "feat(auth): normal scope" "" "alpha beta rc preview canary dev" "conventional-commits")
 run_test "CC normal scope (no pre:) does not set suffix" "" "$result"
@@ -493,6 +502,9 @@ run_test "CC Pre-release: footer sets suffix" "beta" "$result"
 
 result=$(resolve_commit_prerelease_suffix "$(printf 'feat: add feature\n\nPrerelease: rc')" "" "alpha beta rc preview canary dev" "conventional-commits")
 run_test "CC Prerelease: footer (no hyphen) sets suffix" "rc" "$result"
+
+result=$(resolve_commit_prerelease_suffix "$(printf 'feat: add feature\n\nPre-release: team-blue')" "" "team-blue" "conventional-commits")
+run_test "Hyphenated footer suffix is preserved" "team-blue" "$result"
 
 result=$(resolve_commit_prerelease_suffix "$(printf 'feat: add feature\n\nPRE-RELEASE: alpha')" "" "alpha beta rc preview canary dev" "conventional-commits")
 run_test "CC PRE-RELEASE: footer case-insensitive sets suffix" "alpha" "$result"

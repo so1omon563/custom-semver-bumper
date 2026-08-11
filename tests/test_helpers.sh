@@ -305,9 +305,10 @@ resolve_commit_prerelease_suffix() {
 
     local COMMIT_MSG_PRERELEASE=""
     local CC_SCOPE_PRERELEASE=""
+    local PRERELEASE_SUFFIX_RE='[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*'
 
     # Step A (lowest priority baseline): hashtag marker
-    local PRERELEASE_HASHTAG_RE='#(prerelease|pre):([a-zA-Z][a-zA-Z0-9]*)'
+    local PRERELEASE_HASHTAG_RE="#(prerelease|pre):($PRERELEASE_SUFFIX_RE)([[:space:]]|$)"
     if [[ "$lower_msg" =~ $PRERELEASE_HASHTAG_RE ]]; then
         COMMIT_MSG_PRERELEASE="${BASH_REMATCH[2]}"
     fi
@@ -324,7 +325,7 @@ resolve_commit_prerelease_suffix() {
                 local scope_inner
                 scope_inner=$(echo "${scope_raw#(}" | tr '[:upper:]' '[:lower:]')
                 scope_inner="${scope_inner%)}"
-                if [[ "$scope_inner" =~ ^pre:([a-zA-Z][a-zA-Z0-9]*)$ ]]; then
+                if [[ "$scope_inner" =~ ^pre:($PRERELEASE_SUFFIX_RE)$ ]]; then
                     CC_SCOPE_PRERELEASE="${BASH_REMATCH[1]}"
                 fi
             fi
@@ -335,7 +336,7 @@ resolve_commit_prerelease_suffix() {
                 # Lowercase so feat(Pre:ALPHA): normalises to pre:alpha (consistent with hashtag/footer)
                 scope_inner=$(echo "${scope_raw#(}" | tr '[:upper:]' '[:lower:]')
                 scope_inner="${scope_inner%)}"
-                if [[ "$scope_inner" =~ ^pre:([a-zA-Z][a-zA-Z0-9]*)$ ]]; then
+                if [[ "$scope_inner" =~ ^pre:($PRERELEASE_SUFFIX_RE)$ ]]; then
                     CC_SCOPE_PRERELEASE="${BASH_REMATCH[1]}"
                 fi
             fi
@@ -346,8 +347,7 @@ resolve_commit_prerelease_suffix() {
     fi
 
     # Step C (highest priority; overrides A and B): Pre-release: footer, case-insensitive
-    # Intentional: only the first alphanumeric word after the colon is captured.
-    local PRERELEASE_FOOTER_RE='^pre-?release:[[:space:]]*([a-zA-Z][a-zA-Z0-9]*)'
+    local PRERELEASE_FOOTER_RE="^pre-?release:[[:space:]]*($PRERELEASE_SUFFIX_RE)[[:space:]]*$"
     local footer_line
     while IFS= read -r footer_line; do
         local footer_lower
