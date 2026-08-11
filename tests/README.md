@@ -67,6 +67,9 @@ cd tests/
 ./run_tests.sh
 ```
 
+The full runner requires `bats-core`. The unit, integration, and contract-check
+commands below remain usable without it.
+
 ### Individual Test Suites
 
 Run specific test suites:
@@ -157,13 +160,14 @@ Scenarios covered:
 
 - **Git**: For repository operations
 - **Bash**: Version 4.0+ recommended
-
-### Optional
-
-- **BATS**: For running `.bats` test files
+- **BATS**: Required by `run_tests.sh` and `make test-all`
   - Install on macOS: `brew install bats-core`
   - Install on Ubuntu/Debian: `sudo apt-get install bats`
   - See: https://github.com/bats-core/bats-core
+
+### Optional
+
+- **ShellCheck**: Required only for `make shellcheck`
 
 ## Test Coverage
 

@@ -116,20 +116,24 @@ check_dependencies() {
         missing_deps+=("git")
     fi
     
-    # Check for BATS (optional)
+    # The full runner includes both BATS suites, so BATS is required here.
     if ! command -v bats &> /dev/null; then
-        echo -e "${YELLOW}⚠ BATS not found. Skipping BATS tests.${NC}"
-        echo -e "  Install with: ${BLUE}brew install bats-core${NC} (macOS) or see https://github.com/bats-core/bats-core"
+        missing_deps+=("bats-core")
     fi
     
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         echo -e "${RED}Missing dependencies: ${missing_deps[*]}${NC}"
-        echo "Please install the missing dependencies and try again."
+        echo "Install bats-core with 'brew install bats-core' on macOS or your system package manager."
         exit 1
     fi
 }
 
 # Main execution
+if [[ "${CHECK_DEPENDENCIES_ONLY:-false}" == "true" ]]; then
+    check_dependencies
+    exit 0
+fi
+
 print_header
 
 # Check dependencies
@@ -153,7 +157,7 @@ run_test_suite "test.sh" "Unit Tests"
 print_section "Running Integration Tests"
 run_test_suite "integration_test.sh" "Integration Tests"
 
-# Run BATS tests if available
+# Run BATS tests (availability was verified above)
 if command -v bats &> /dev/null; then
     # run_bats_file <file> <label>
     run_bats_file() {

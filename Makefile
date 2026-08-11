@@ -5,7 +5,7 @@
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  test-all         - Run all tests (includes contract check)"
+	@echo "  test-all         - Run all tests (requires bats-core; includes contract check)"
 	@echo "  test-unit        - Run unit tests only"
 	@echo "  test-integration - Run integration tests only"
 	@echo "  test-bats        - Run BATS helper-function tests only (requires bats-core)"
