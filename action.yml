@@ -59,6 +59,8 @@ inputs:
       The identifier uses the SemVer §9 pre-release label slot, but is not limited
       to pre-release signaling — any meaningful identifier is valid (e.g. nightly,
       enterprise, canary, team-blue).
+      Values must use dot-separated SemVer identifiers: letters, numbers, and
+      hyphens only, with no empty segments or leading zeroes in numeric segments.
       Common pre-release values: alpha, beta, rc, preview, canary, dev.
       Can be overridden by a commit message marker — see allowed_prerelease_suffixes.
   allowed_prerelease_suffixes:
