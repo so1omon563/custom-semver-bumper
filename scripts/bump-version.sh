@@ -7,11 +7,37 @@ set -e
 # Tag prefix (e.g. 'v' → v1.2.3, '' → 1.2.3, 'release-' → release-1.2.3)
 TAG_PREFIX="${TAG_PREFIX-v}"
 
+_config_error() {
+  echo "Error: $*" >&2
+  exit 1
+}
+
+_validate_bump_map() {
+  local _name="$1" _map="$2" _entry _key _level
+  while IFS= read -r _entry; do
+    [[ -n "${_entry//[[:space:]]/}" ]] || continue
+    if [[ "$_entry" != *=* ]]; then
+      _config_error "Invalid $_name entry '$_entry': expected key=level"
+    fi
+    _key=$(echo "${_entry%%=*}" | tr -d ' \t\r')
+    _level=$(echo "${_entry#*=}" | tr -d ' \t\r')
+    if [[ -z "$_key" ]]; then
+      _config_error "Invalid $_name entry '$_entry': key must not be empty"
+    fi
+    case "$_level" in
+      major|minor|patch|none) ;;
+      *) _config_error "Invalid $_name entry '$_entry': level must be major, minor, patch, or none" ;;
+    esac
+  done <<< "$_map"
+}
+
 # Parse compound default_bump values (e.g. minor-prerelease → base=minor, prerelease=true)
 _DEFAULT_BUMP_RAW="${DEFAULT_BUMP:-patch}"
 _DEFAULT_PRERELEASE=false
 _DEFAULT_BASE_BUMP="$_DEFAULT_BUMP_RAW"
 case "$_DEFAULT_BUMP_RAW" in
+  patch|minor|major|none)
+    ;;
   prerelease|patch-prerelease)
     _DEFAULT_PRERELEASE=true
     _DEFAULT_BASE_BUMP="patch"
@@ -24,7 +50,28 @@ case "$_DEFAULT_BUMP_RAW" in
     _DEFAULT_PRERELEASE=true
     _DEFAULT_BASE_BUMP="major"
     ;;
+  *)
+    _config_error "Invalid DEFAULT_BUMP '$_DEFAULT_BUMP_RAW'"
+    ;;
 esac
+
+MARKER_STYLE="${MARKER_STYLE:-hashtag}"
+case "$MARKER_STYLE" in
+  hashtag|conventional-commits) ;;
+  *) _config_error "Invalid MARKER_STYLE '$MARKER_STYLE'" ;;
+esac
+
+_validate_bump_map "CC_TYPE_MAP" "${CC_TYPE_MAP:-}"
+BRANCH_PREFIX_MAP="${BRANCH_PREFIX_MAP:-feat=minor
+feature=minor
+fix=patch
+hotfix=patch
+bugfix=patch
+breaking=major
+major=major
+minor=minor
+patch=patch}"
+_validate_bump_map "BRANCH_PREFIX_MAP" "$BRANCH_PREFIX_MAP"
 
 # Get the merge commit message early (needed for skip detection)
 MERGE_COMMIT_MSG=$(git log -1 --pretty=%B)
@@ -454,15 +501,6 @@ fi
 if [[ "$COMMIT_HAS_EXPLICIT_MARKER" == "false" && -n "$BRANCH_NAME" ]]; then
   branch_prefix="${BRANCH_NAME%%/*}"
   branch_prefix_lower=$(echo "$branch_prefix" | tr '[:upper:]' '[:lower:]')
-  BRANCH_PREFIX_MAP="${BRANCH_PREFIX_MAP:-feat=minor
-feature=minor
-fix=patch
-hotfix=patch
-bugfix=patch
-breaking=major
-major=major
-minor=minor
-patch=patch}"
   while IFS='=' read -r bp_key bp_val; do
     bp_key=$(echo "$bp_key" | tr -d ' \t\r' | tr '[:upper:]' '[:lower:]')
     bp_val=$(echo "$bp_val" | tr -d ' \t\r' | tr '[:upper:]' '[:lower:]')
