@@ -633,6 +633,34 @@ EOF
     grep -q "new_version=v2.1.0" "$GITHUB_OUTPUT_FILE"
 }
 
+@test "script: rejected floating tag update leaves all remote tags unchanged" {
+    git tag -a "v1.2.3" -m "Version 1.2.3"
+    git push origin "v1.2.3" --quiet
+    git tag -a "v1" -m "Major pointer"
+    git push origin "v1" --quiet
+    local previous_major
+    previous_major=$(git --git-dir="$ORIGIN_DIR" rev-parse refs/tags/v1)
+
+    echo "Bug fix" >> README.md
+    git add README.md
+    git commit --quiet -m "Fix atomic publication"
+
+    cat > "$ORIGIN_DIR/hooks/update" << 'EOF'
+#!/bin/bash
+[[ "$1" != "refs/tags/v1" ]]
+EOF
+    chmod +x "$ORIGIN_DIR/hooks/update"
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" MOVE_MAJOR_TAG="true" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -ne 0 ]
+    ! git ls-remote --exit-code --tags origin "refs/tags/v1.2.4" >/dev/null 2>&1
+    [ "$(git --git-dir="$ORIGIN_DIR" rev-parse refs/tags/v1)" = "$previous_major" ]
+    [ -z "$(git tag -l 'v1.2.4')" ]
+    [ "$(git rev-parse refs/tags/v1)" = "$previous_major" ]
+    [ ! -s "$GITHUB_OUTPUT_FILE" ]
+}
+
 @test "script: custom BRANCH_PREFIX_MAP overrides default prefix mapping" {
     git tag -a "v1.0.0" -m "Version 1.0.0"
     git push origin "v1.0.0" --quiet
