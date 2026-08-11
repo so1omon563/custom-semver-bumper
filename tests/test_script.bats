@@ -59,6 +59,53 @@ teardown() {
     grep -q "bump_type=patch" "$GITHUB_OUTPUT_FILE"
 }
 
+# ── Configuration validation ─────────────────────────────────────────────────
+
+@test "script: invalid DEFAULT_BUMP fails before creating a tag" {
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" DEFAULT_BUMP="banana" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid DEFAULT_BUMP 'banana'"* ]]
+    [ -z "$(git tag -l)" ]
+    [ ! -s "$GITHUB_OUTPUT_FILE" ]
+}
+
+@test "script: invalid MARKER_STYLE fails before creating a tag" {
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" MARKER_STYLE="banana" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid MARKER_STYLE 'banana'"* ]]
+    [ -z "$(git tag -l)" ]
+    [ ! -s "$GITHUB_OUTPUT_FILE" ]
+}
+
+@test "script: invalid CC_TYPE_MAP level fails before creating a tag" {
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" CC_TYPE_MAP="feat=banana" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid CC_TYPE_MAP entry 'feat=banana'"* ]]
+    [ -z "$(git tag -l)" ]
+    [ ! -s "$GITHUB_OUTPUT_FILE" ]
+}
+
+@test "script: invalid BRANCH_PREFIX_MAP level fails before creating a tag" {
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" BRANCH_PREFIX_MAP="feat=banana" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid BRANCH_PREFIX_MAP entry 'feat=banana'"* ]]
+    [ -z "$(git tag -l)" ]
+    [ ! -s "$GITHUB_OUTPUT_FILE" ]
+}
+
+@test "script: malformed map entry fails before creating a tag" {
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" CC_TYPE_MAP="feat" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid CC_TYPE_MAP entry 'feat': expected key=level"* ]]
+    [ -z "$(git tag -l)" ]
+    [ ! -s "$GITHUB_OUTPUT_FILE" ]
+}
+
 # ── Hashtag markers ───────────────────────────────────────────────────────────
 
 @test "script: default patch bump (no marker)" {
