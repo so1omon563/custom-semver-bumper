@@ -134,6 +134,7 @@ _find_release_marker() {
 
 CC_BREAKING_RE='^([a-zA-Z]+)(\([^)]*\))?!:'
 CC_TYPE_RE='^([a-zA-Z]+)(\([^)]*\))?:'
+PRERELEASE_SUFFIX_RE='[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*'
 
 _conventional_title_has_bump_marker() {
   local _title_type _map_key
@@ -312,7 +313,7 @@ if [[ "${MARKER_STYLE:-hashtag}" == "conventional-commits" ]]; then
         scope_raw="${BASH_REMATCH[2]}"
         scope_inner=$(echo "${scope_raw#(}" | tr '[:upper:]' '[:lower:]')
         scope_inner="${scope_inner%)}"
-        if [[ "$scope_inner" =~ ^pre:([a-zA-Z][a-zA-Z0-9]*)$ ]]; then
+        if [[ "$scope_inner" =~ ^pre:($PRERELEASE_SUFFIX_RE)$ ]]; then
           CC_SCOPE_PRERELEASE="${BASH_REMATCH[1]}"
         fi
       fi
@@ -335,7 +336,7 @@ if [[ "${MARKER_STYLE:-hashtag}" == "conventional-commits" ]]; then
         # Lowercase scope_inner so feat(Pre:ALPHA): normalises to pre:alpha (consistent with hashtag/footer)
         scope_inner=$(echo "${scope_raw#(}" | tr '[:upper:]' '[:lower:]')
         scope_inner="${scope_inner%)}"
-        if [[ "$scope_inner" =~ ^pre:([a-zA-Z][a-zA-Z0-9]*)$ ]]; then
+        if [[ "$scope_inner" =~ ^pre:($PRERELEASE_SUFFIX_RE)$ ]]; then
           CC_SCOPE_PRERELEASE="${BASH_REMATCH[1]}"
         fi
       fi
@@ -416,7 +417,7 @@ COMMIT_MSG_PRERELEASE=""
 COUNTER_ONLY_FROM_MSG=false
 
 # Step A (lowest priority baseline): hashtag marker — matched on lowercase message
-PRERELEASE_HASHTAG_RE='#(prerelease|pre):([a-zA-Z][a-zA-Z0-9]*)'
+PRERELEASE_HASHTAG_RE="#(prerelease|pre):($PRERELEASE_SUFFIX_RE)([[:space:]]|$)"
 PRERELEASE_BARE_RE='#(prerelease|pre)([^:a-zA-Z0-9]|$)'
 if [[ "$LOWER_MSG" =~ $PRERELEASE_HASHTAG_RE ]]; then
   COMMIT_MSG_PRERELEASE="${BASH_REMATCH[2]}"
@@ -431,9 +432,7 @@ if [[ -n "$CC_SCOPE_PRERELEASE" ]]; then
 fi
 
 # Step C (highest priority; overrides A and B): Pre-release: footer, case-insensitive
-# Intentional: only the first alphanumeric word after the colon is captured;
-# any trailing content (e.g. "Pre-release: rc.2") is silently ignored and "rc" is used.
-PRERELEASE_FOOTER_RE='^pre-?release:[[:space:]]*([a-zA-Z][a-zA-Z0-9]*)'
+PRERELEASE_FOOTER_RE="^pre-?release:[[:space:]]*($PRERELEASE_SUFFIX_RE)[[:space:]]*$"
 while IFS= read -r footer_line; do
   footer_line_lower=$(echo "$footer_line" | tr '[:upper:]' '[:lower:]')
   if [[ "$footer_line_lower" =~ $PRERELEASE_FOOTER_RE ]]; then
