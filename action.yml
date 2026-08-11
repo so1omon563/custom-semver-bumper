@@ -82,6 +82,8 @@ inputs:
       'hashtag' (default): looks for #major, #minor, #patch in the commit body.
       'conventional-commits': parses Conventional Commit type prefixes
       (e.g. feat:, fix:) using the cc_type_map input.
+      Types and the ! shorthand are parsed only from the first-line header;
+      body lines are scanned only for breaking-change footers.
       In 'conventional-commits' mode, BREAKING CHANGE footers and the ! suffix
       always map to a major bump and cannot be overridden by cc_type_map.
   cc_type_map:

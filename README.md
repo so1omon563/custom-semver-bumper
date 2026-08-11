@@ -1,7 +1,7 @@
 # Custom Version Bumper
 
 [![Test Custom Version Bumper Action](https://github.com/so1omon563/custom-semver-bumper/actions/workflows/test.yml/badge.svg)](https://github.com/so1omon563/custom-semver-bumper/actions/workflows/test.yml)
-[![Coverage](https://img.shields.io/badge/coverage-81%25-brightgreen)](https://github.com/so1omon563/custom-semver-bumper/actions/workflows/test.yml)
+[![Coverage](https://img.shields.io/badge/coverage-83%25-brightgreen)](https://github.com/so1omon563/custom-semver-bumper/actions/workflows/test.yml)
 
 GitHub Action that **automatically tags every merge commit** with a
 [Semantic Versioning 2.0.0][semver-spec]-compliant Git tag. Every time a PR merges
@@ -458,6 +458,10 @@ to drive version bumps from commit type prefixes instead of hashtag markers.
 | `feat!: …` or `BREAKING CHANGE:` footer   | major                           |
 | Any scoped variant (e.g. `feat(auth): …`) | same rules apply                |
 | Type not in `cc_type_map`                 | falls through to `default_bump` |
+
+Type prefixes and the `!` shorthand are parsed only from the first-line commit
+header. Commit-body lines are scanned only for `BREAKING CHANGE:` and
+`BREAKING-CHANGE:` footers.
 
 ```yaml
 - uses: so1omon563/custom-semver-bumper@v1

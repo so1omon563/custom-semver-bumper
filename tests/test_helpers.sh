@@ -25,10 +25,13 @@ calculate_new_version() {
     if ! [[ "$MINOR" =~ ^[0-9]+$ ]]; then MINOR=0; fi
     if ! [[ "$PATCH" =~ ^[0-9]+$ ]]; then PATCH=0; fi
 
-    local LOWER_MSG LOWER_TITLE LOWER_BODY TITLE_HAS_BUMP_MARKER TITLE_HAS_SKIP_MARKER
+    local COMMIT_TITLE COMMIT_BODY LOWER_MSG LOWER_TITLE LOWER_BODY
+    local TITLE_HAS_BUMP_MARKER TITLE_HAS_SKIP_MARKER
+    COMMIT_TITLE=$(echo "$merge_commit_msg" | head -1)
+    COMMIT_BODY=$(echo "$merge_commit_msg" | tail -n +2)
     LOWER_MSG=$(echo "$merge_commit_msg" | tr '[:upper:]' '[:lower:]')
-    LOWER_TITLE=$(echo "$merge_commit_msg" | head -1 | tr '[:upper:]' '[:lower:]')
-    LOWER_BODY=$(echo "$merge_commit_msg" | tail -n +2 | tr '[:upper:]' '[:lower:]')
+    LOWER_TITLE=$(echo "$COMMIT_TITLE" | tr '[:upper:]' '[:lower:]')
+    LOWER_BODY=$(echo "$COMMIT_BODY" | tr '[:upper:]' '[:lower:]')
 
     # Determine whether the title carries an explicit marker.
     TITLE_HAS_BUMP_MARKER=false
@@ -67,23 +70,18 @@ calculate_new_version() {
         local cc_breaking_re='^([a-zA-Z]+)(\([^)]*\))?!:'
         local cc_footer_re='^BREAKING([[:space:]]|-)CHANGE:'
         local cc_type_re='^([a-zA-Z]+)(\([^)]*\))?:'
+        if [[ "$COMMIT_TITLE" =~ $cc_breaking_re ]]; then
+            CC_TYPE=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
+            BUMP_TYPE="major"
+        elif [[ "$COMMIT_TITLE" =~ $cc_type_re ]]; then
+            CC_TYPE=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
+        fi
         while IFS= read -r line; do
-            # Check for type with ! suffix — always major
-            if [[ "$line" =~ $cc_breaking_re ]]; then
-                CC_TYPE=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
-                BUMP_TYPE="major"
-                break
-            fi
-            # Check for BREAKING CHANGE footer — always major
             if [[ "$line" =~ $cc_footer_re ]]; then
                 BUMP_TYPE="major"
                 break
             fi
-            # Capture first regular CC type prefix
-            if [[ -z "$CC_TYPE" && "$line" =~ $cc_type_re ]]; then
-                CC_TYPE=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
-            fi
-        done <<< "$merge_commit_msg"
+        done <<< "$COMMIT_BODY"
 
         # Look up CC_TYPE in cc_type_map
         if [[ -z "$BUMP_TYPE" && -n "$CC_TYPE" && -n "$cc_type_map" ]]; then
