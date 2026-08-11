@@ -93,6 +93,11 @@ make shellcheck         # Static analysis for shell scripts
 The non-BATS targets (`test-unit`, `test-integration`, and `check-contract`) do
 not require `bats-core`; `test-all`, `test-bats`, and `test-script` do.
 
+For workflow changes, verify a pull request from a fork as well as a branch in
+this repository. The fork case must run the coverage gate against the fork head
+commit, upload its report, skip the badge-update step, and perform no repository
+writes.
+
 All behavior changes should include tests. The most important suite is
 `tests/test_script.bats` because it invokes `scripts/bump-version.sh` directly in a
 real isolated Git repository.
