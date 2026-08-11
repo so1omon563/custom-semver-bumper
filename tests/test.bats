@@ -364,6 +364,12 @@ fix=patch"
     [ "$result" = "2.0.0" ]
 }
 
+@test "conventional commits: body type example does not control the bump" {
+    msg="$(printf 'Update guide\n\nfeat: add dashboard')"
+    result=$(calculate_new_version "1.2.3" "$msg" "patch" "conventional-commits" "$DEFAULT_CC_MAP")
+    [ "$result" = "1.2.4" ]
+}
+
 @test "conventional commits: feat(scope): produces minor bump" {
     result=$(calculate_new_version "1.2.3" "feat(auth): add OAuth support" "patch" "conventional-commits" "$DEFAULT_CC_MAP")
     [ "$result" = "1.3.0" ]

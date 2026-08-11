@@ -67,7 +67,9 @@ calculate_new_version() {
     if ! [[ "$MINOR" =~ ^[0-9]+$ ]]; then MINOR=0; fi
     if ! [[ "$PATCH" =~ ^[0-9]+$ ]]; then PATCH=0; fi
 
-    local lower_msg
+    local commit_title commit_body lower_msg
+    commit_title=$(echo "$merge_commit_msg" | head -1)
+    commit_body=$(echo "$merge_commit_msg" | tail -n +2)
     lower_msg=$(echo "$merge_commit_msg" | tr '[:upper:]' '[:lower:]')
 
     # Check for skip markers first (honored in both modes)
@@ -86,20 +88,18 @@ calculate_new_version() {
         local cc_breaking_re='^([a-zA-Z]+)(\([^)]*\))?!:'
         local cc_footer_re='^BREAKING([[:space:]]|-)CHANGE:'
         local cc_type_re='^([a-zA-Z]+)(\([^)]*\))?:'
+        if [[ "$commit_title" =~ $cc_breaking_re ]]; then
+            CC_TYPE=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
+            BUMP_TYPE="major"
+        elif [[ "$commit_title" =~ $cc_type_re ]]; then
+            CC_TYPE=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
+        fi
         while IFS= read -r line; do
-            if [[ "$line" =~ $cc_breaking_re ]]; then
-                CC_TYPE=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
-                BUMP_TYPE="major"
-                break
-            fi
             if [[ "$line" =~ $cc_footer_re ]]; then
                 BUMP_TYPE="major"
                 break
             fi
-            if [[ -z "$CC_TYPE" && "$line" =~ $cc_type_re ]]; then
-                CC_TYPE=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
-            fi
-        done <<< "$merge_commit_msg"
+        done <<< "$commit_body"
 
         if [[ -z "$BUMP_TYPE" && -n "$CC_TYPE" && -n "$cc_type_map" ]]; then
             local map_key map_val
@@ -320,6 +320,9 @@ run_test "CC: BREAKING CHANGE footer → major bump" "2.0.0" "$result"
 
 result=$(calculate_new_version "1.2.3" "$(printf 'feat: add thing\n\nBREAKING-CHANGE: removed old API')" "patch" "conventional-commits" "$DEFAULT_CC_MAP")
 run_test "CC: BREAKING-CHANGE footer (hyphen form) → major bump" "2.0.0" "$result"
+
+result=$(calculate_new_version "1.2.3" "$(printf 'Update guide\n\nfeat: add dashboard')" "patch" "conventional-commits" "$DEFAULT_CC_MAP")
+run_test "CC: body type example does not control bump" "1.2.4" "$result"
 
 result=$(calculate_new_version "1.2.3" "feat(auth): add OAuth support" "patch" "conventional-commits" "$DEFAULT_CC_MAP")
 run_test "CC: feat(scope): → minor bump" "1.3.0" "$result"

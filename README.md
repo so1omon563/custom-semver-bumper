@@ -459,6 +459,10 @@ to drive version bumps from commit type prefixes instead of hashtag markers.
 | Any scoped variant (e.g. `feat(auth): …`) | same rules apply                |
 | Type not in `cc_type_map`                 | falls through to `default_bump` |
 
+Type prefixes and the `!` shorthand are parsed only from the first-line commit
+header. Commit-body lines are scanned only for `BREAKING CHANGE:` and
+`BREAKING-CHANGE:` footers.
+
 ```yaml
 - uses: so1omon563/custom-semver-bumper@v1
   with:

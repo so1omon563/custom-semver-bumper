@@ -367,6 +367,40 @@ EOF
     grep -q "bump_type=major" "$GITHUB_OUTPUT_FILE"
 }
 
+@test "script: conventional commit type in body does not control bump" {
+    git tag -a "v1.2.3" -m "Version 1.2.3"
+    git push origin "v1.2.3" --quiet
+    echo "Docs" >> README.md
+    git add README.md
+    git commit --quiet -m "Update guide" -m "feat: add dashboard"
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" \
+        MARKER_STYLE="conventional-commits" \
+        CC_TYPE_MAP="feat=minor
+fix=patch" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -eq 0 ]
+    git tag -l | grep -qx "v1.2.4"
+    grep -q "bump_type=patch" "$GITHUB_OUTPUT_FILE"
+}
+
+@test "script: Conventional Commit breaking-change footer still triggers major" {
+    git tag -a "v1.2.3" -m "Version 1.2.3"
+    git push origin "v1.2.3" --quiet
+    echo "API" >> README.md
+    git add README.md
+    git commit --quiet -m "feat: update API" -m "BREAKING CHANGE: remove legacy endpoint"
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" \
+        MARKER_STYLE="conventional-commits" \
+        CC_TYPE_MAP="feat=minor
+fix=patch" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -eq 0 ]
+    git tag -l | grep -qx "v2.0.0"
+    grep -q "bump_type=major" "$GITHUB_OUTPUT_FILE"
+}
+
 @test "script: conventional title takes priority over body markers" {
     git tag -a "v1.0.0" -m "Version 1.0.0"
     git push origin "v1.0.0" --quiet

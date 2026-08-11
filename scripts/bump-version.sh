@@ -298,50 +298,37 @@ if [[ "${MARKER_STYLE:-hashtag}" == "conventional-commits" ]]; then
   # Regex patterns stored in variables for bash 3.2 compatibility
   CC_FOOTER_RE='^BREAKING([[:space:]]|-)CHANGE:'
 
-  # Scan every line of the commit message
-  while IFS= read -r line; do
-    scope_raw=""
-    scope_inner=""
-    # Check for type with ! suffix (breaking change shorthand) — always major
-    if [[ "$line" =~ $CC_BREAKING_RE ]]; then
-      CC_TYPE=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
-      BUMP_TYPE="major"
-      echo "Conventional commits: '${CC_TYPE}!' breaking change detected → major bump"
-      COMMIT_HAS_EXPLICIT_MARKER=true
-      # Also capture pre-release scope hint from breaking-change lines (e.g. feat(pre:alpha)!:)
-      if [[ -z "$CC_SCOPE_PRERELEASE" ]]; then
-        scope_raw="${BASH_REMATCH[2]}"
-        scope_inner=$(echo "${scope_raw#(}" | tr '[:upper:]' '[:lower:]')
-        scope_inner="${scope_inner%)}"
-        if [[ "$scope_inner" =~ ^pre:($PRERELEASE_SUFFIX_RE)$ ]]; then
-          CC_SCOPE_PRERELEASE="${BASH_REMATCH[1]}"
-        fi
-      fi
-      break
+  scope_raw=""
+  scope_inner=""
+  # Conventional Commit types are headers, so inspect only the title line.
+  if [[ "$COMMIT_TITLE" =~ $CC_BREAKING_RE ]]; then
+    CC_TYPE=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
+    BUMP_TYPE="major"
+    echo "Conventional commits: '${CC_TYPE}!' breaking change detected → major bump"
+    COMMIT_HAS_EXPLICIT_MARKER=true
+    scope_raw="${BASH_REMATCH[2]}"
+  elif [[ "$COMMIT_TITLE" =~ $CC_TYPE_RE ]]; then
+    CC_TYPE=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
+    scope_raw="${BASH_REMATCH[2]}"
+  fi
+
+  if [[ -n "$scope_raw" ]]; then
+    scope_inner=$(echo "${scope_raw#(}" | tr '[:upper:]' '[:lower:]')
+    scope_inner="${scope_inner%)}"
+    if [[ "$scope_inner" =~ ^pre:($PRERELEASE_SUFFIX_RE)$ ]]; then
+      CC_SCOPE_PRERELEASE="${BASH_REMATCH[1]}"
     fi
-    # Check for BREAKING CHANGE footer — always major
+  fi
+
+  # Body lines may still declare a breaking change using the documented footer.
+  while IFS= read -r line; do
     if [[ "$line" =~ $CC_FOOTER_RE ]]; then
       BUMP_TYPE="major"
       echo "Conventional commits: 'BREAKING CHANGE:' footer detected → major bump"
       COMMIT_HAS_EXPLICIT_MARKER=true
       break
     fi
-    # Capture first regular CC type prefix found (e.g. feat:, fix:, chore:)
-    if [[ -z "$CC_TYPE" && "$line" =~ $CC_TYPE_RE ]]; then
-      CC_TYPE=$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')
-      # Check for pre-release scope hint: feat(pre:alpha): or fix(pre:rc):
-      # scope_raw/scope_inner are script-level temp vars (can't use 'local' outside a function).
-      if [[ -z "$CC_SCOPE_PRERELEASE" ]]; then
-        scope_raw="${BASH_REMATCH[2]}"
-        # Lowercase scope_inner so feat(Pre:ALPHA): normalises to pre:alpha (consistent with hashtag/footer)
-        scope_inner=$(echo "${scope_raw#(}" | tr '[:upper:]' '[:lower:]')
-        scope_inner="${scope_inner%)}"
-        if [[ "$scope_inner" =~ ^pre:($PRERELEASE_SUFFIX_RE)$ ]]; then
-          CC_SCOPE_PRERELEASE="${BASH_REMATCH[1]}"
-        fi
-      fi
-    fi
-  done <<< "$MERGE_COMMIT_MSG"
+  done <<< "$COMMIT_BODY"
 
   # Look up CC_TYPE in CC_TYPE_MAP when no breaking change was found
   if [[ -z "$BUMP_TYPE" && -n "$CC_TYPE" && -n "$CC_TYPE_MAP" ]]; then
