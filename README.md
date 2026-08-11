@@ -503,7 +503,9 @@ hatches still work in this mode.
 > | `canary` | `v1.3.0-canary.7` | Canary deployment ring |
 
 Set `prerelease_suffix` to append a label identifier to the tag. The counter
-auto-increments for each run that targets the same base version:
+auto-increments for each run that targets the same base version. Values use
+dot-separated SemVer identifiers: letters, numbers, and hyphens only, with no
+empty segments or leading zeroes in numeric segments:
 
 ```yaml
 - uses: so1omon563/custom-semver-bumper@v1

@@ -31,6 +31,23 @@ _validate_bump_map() {
   done <<< "$_map"
 }
 
+_validate_prerelease_suffix() {
+  local _suffix="$1" _segment
+  local -a _segments
+  if [[ ! "$_suffix" =~ ^[0-9A-Za-z.-]+$ ]]; then
+    _config_error "Invalid PRERELEASE_SUFFIX '$_suffix': use only letters, numbers, hyphens, and dots"
+  fi
+  if [[ "$_suffix" == .* || "$_suffix" == *. || "$_suffix" == *..* ]]; then
+    _config_error "Invalid PRERELEASE_SUFFIX '$_suffix': identifier segments must not be empty"
+  fi
+  IFS='.' read -r -a _segments <<< "$_suffix"
+  for _segment in "${_segments[@]}"; do
+    if [[ "$_segment" =~ ^[0-9]+$ && ${#_segment} -gt 1 && "$_segment" == 0* ]]; then
+      _config_error "Invalid PRERELEASE_SUFFIX '$_suffix': numeric identifiers must not contain leading zeroes"
+    fi
+  done
+}
+
 # Parse compound default_bump values (e.g. minor-prerelease → base=minor, prerelease=true)
 _DEFAULT_BUMP_RAW="${DEFAULT_BUMP:-patch}"
 _DEFAULT_PRERELEASE=false
@@ -493,6 +510,10 @@ elif [[ "$_DEFAULT_PRERELEASE" == true && "$COMMIT_HAS_EXPLICIT_MARKER" == "fals
   PRERELEASE_MODE=true
   COUNTER_ONLY=true
   echo "default_bump=$_DEFAULT_BUMP_RAW with no suffix → counter-only pre-release (v<base>-N)"
+fi
+
+if $PRERELEASE_MODE && ! $COUNTER_ONLY; then
+  _validate_prerelease_suffix "$PRERELEASE_SUFFIX"
 fi
 
 # --- Branch-name fallback bump detection ---

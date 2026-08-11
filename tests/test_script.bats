@@ -396,6 +396,48 @@ EOF
 
 # ── Pre-release ───────────────────────────────────────────────────────────────
 
+@test "script: hyphenated workflow pre-release suffix creates a valid tag" {
+    git tag -a "v1.2.3" -m "Version 1.2.3"
+    git push origin "v1.2.3" --quiet
+
+    echo "Team build" >> README.md
+    git add README.md
+    git commit --quiet -m "Build for the blue team"
+
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" PRERELEASE_SUFFIX="team-blue" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -eq 0 ]
+    git tag -l | grep -qx "v1.2.4-team-blue.1"
+    grep -q "new_version=v1.2.4-team-blue.1" "$GITHUB_OUTPUT_FILE"
+}
+
+@test "script: workflow pre-release suffix rejects underscores before tag creation" {
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" PRERELEASE_SUFFIX="alpha_beta" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid PRERELEASE_SUFFIX 'alpha_beta'"* ]]
+    [ -z "$(git tag -l)" ]
+    [ ! -s "$GITHUB_OUTPUT_FILE" ]
+}
+
+@test "script: workflow pre-release suffix rejects empty identifier segments" {
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" PRERELEASE_SUFFIX="alpha..beta" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid PRERELEASE_SUFFIX 'alpha..beta'"* ]]
+    [ -z "$(git tag -l)" ]
+    [ ! -s "$GITHUB_OUTPUT_FILE" ]
+}
+
+@test "script: workflow pre-release suffix rejects numeric leading zeroes" {
+    run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" PRERELEASE_SUFFIX="alpha.01" \
+        "$BATS_TEST_DIRNAME/run-bump-version.sh"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid PRERELEASE_SUFFIX 'alpha.01'"* ]]
+    [ -z "$(git tag -l)" ]
+    [ ! -s "$GITHUB_OUTPUT_FILE" ]
+}
+
 @test "script: #prerelease:alpha hashtag creates named pre-release tag" {
     git tag -a "v1.5.0" -m "Version 1.5.0"
     git push origin "v1.5.0" --quiet
